@@ -1,0 +1,49 @@
+# SEQ > SWING per part: OFF plays the part straight, HOME's SWING still swings the others. Every part
+# has it in the same place: the last row of SEL's list
+wait 300
+expect part 0
+tap SEQ
+expect noswing0 0
+tap SEL
+turn SELECT 20
+shot noswing_909_list.png
+turn ALGO -1
+expect noswing0 1
+expect noswing1 0
+shot noswing_909_off.png
+turn ALGO 1
+expect noswing0 0
+# 303 A
+tap HOME
+turn ALGO 2
+expect part 2
+shot noswing_303_seq.png
+tap SEL
+turn SELECT 20
+shot noswing_303_list.png
+turn ALGO -1
+expect noswing2 1
+expect noswing0 0
+shot noswing_303_off.png
+# the break
+tap HOME
+turn ALGO 2
+expect part 4
+tap SEL
+turn SELECT 20
+turn ALGO -1
+expect noswing4 1
+expect noswing2 1
+shot noswing_break_off.png
+# a copy of the pattern takes each part's SWING with it
+tap HOME
+press SAVE
+tapkey w1
+release SAVE
+tap HOME
+tapkey w1
+expect pattern 2
+expect ppat4 2
+expect noswing0 0
+expect noswing2 1
+expect noswing4 1

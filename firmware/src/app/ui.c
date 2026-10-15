@@ -184,7 +184,8 @@ static void warn(const char *a, const char *b) { say_as(a, b, ANN_NOW | ANN_KEEP
 /* =============================================================== param refs === */
 enum { R_NONE, R_ENG, R_SWING, R_DLEN, R_DRATE, R_BLEN, R_BRATE, R_BDIR, R_BTRANS, R_GEN, R_BRKSET,
        R_BRKSLOT, R_TEMPO, R_ACCENT, R_CLKOUT, R_NOTEOUT, R_PALETTE, R_KEYLED, R_KEYSOUND, R_AUTOSAVE, R_ACT, R_SBAR, R_SPAT,
-       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL, R_FREEPLAY, R_CORES };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
+       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL, R_FREEPLAY, R_CORES,
+       R_NOSWING };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
 typedef struct { uint8_t kind, a, b, c; } pref_t;
 #define PR(k, a, b, c) ((pref_t){(k), (a), (b), (c)})
 #define NONE PR(R_NONE, 0, 0, 0)
@@ -227,6 +228,7 @@ static const x0x_param_t USBA_P = {"USB AUDIO", 1, 0, USBA_N};
 static const char *const CORES_N[] = {"ON", "OFF"};
 static const x0x_param_t CORES_P = {"2ND CORE", 1, 0, CORES_N};   /* proj.set.one_core: at the next power-on */
 static const x0x_param_t FREEPLAY_P = {"FREE PLAY", 1, 0, ONOFF_N};
+static const x0x_param_t NOSWING_P = {"SWING", 1, 1, ONOFF_N};   /* the part: HOME's swing, or straight */
 static const x0x_param_t SREP_P = {"REPEAT", 7, 0, 0};    /* the bar plays 1-8 times */
 static const char *const BATT_N[] = {"EMPTY", "1/3", "2/3", "FULL", "USB POWER", "..."};
 static const x0x_param_t BATT_P = {"BATTERY", 5, 0, BATT_N};   /* read only (plat_battery) */
@@ -293,6 +295,7 @@ static const x0x_param_t *pref_desc(pref_t r)
     case R_USBFULL: return &USBA_P;
     case R_CORES: return &CORES_P;
     case R_FREEPLAY: return &FREEPLAY_P;
+    case R_NOSWING: return &NOSWING_P;
     case R_SREP: return &SREP_P;
     case R_BATT: return &BATT_P;
     case R_SLEN: return &SONG_P[5];
@@ -317,6 +320,7 @@ static int pref_get(pref_t r)
     case R_BRATE: return pat_of(NKIT + r.a)->bass[r.a].rate;
     case R_BDIR: return pat_of(NKIT + r.a)->bass[r.a].dir;
     case R_BTRANS: return pat_of(NKIT + r.a)->bass[r.a].transpose;
+    case R_NOSWING: return !(pat_of(r.a)->noswing >> r.a & 1u);
     case R_GEN: {
         const tb3po_cfg_t *g = &p->bass[r.a].gen;
         switch (r.c) {
@@ -385,6 +389,11 @@ static void pref_set(pref_t r, int v)
     case R_BRATE: pat_of(NKIT + r.a)->bass[r.a].rate = (uint8_t)v; break;
     case R_BDIR: pat_of(NKIT + r.a)->bass[r.a].dir = (uint8_t)v; break;
     case R_BTRANS: pat_of(NKIT + r.a)->bass[r.a].transpose = (uint8_t)v; break;
+    case R_NOSWING: {
+        pattern_t *q = pat_of(r.a);
+        q->noswing = (uint8_t)(v ? q->noswing & ~(1u << r.a) : q->noswing | 1u << r.a);
+        break;
+    }
     case R_GEN: {
         tb3po_cfg_t *g = &p->bass[r.a].gen;
         switch (r.c) {
@@ -489,7 +498,7 @@ static int in_pattern(pref_t r)
 {
     switch (r.kind) {
     case R_SWING: case R_DLEN: case R_DRATE: case R_BLEN: case R_BRATE: case R_BDIR: case R_BTRANS: case R_GEN:
-    case R_BRKSET: case R_BRKSLOT:
+    case R_BRKSET: case R_BRKSLOT: case R_NOSWING:
         return 1;
     default:
         return 0;
@@ -789,7 +798,7 @@ static void build_pages(void)
     case V_SEQ:                                        /* the part's steps: how its pattern runs */
         pg_grp = GR_PAT;
         if (is_drum())
-            add_page("SEQUENCE", PR(R_DLEN, p, 0, 0), PR(R_DRATE, p, 0, 0), NONE, NONE);   /* (the swing: HOME's, all parts') */
+            add_page("SEQUENCE", PR(R_DLEN, p, 0, 0), PR(R_DRATE, p, 0, 0), NONE, NONE);
         else if (is_303())
         {
             add_page("SEQUENCE", PR(R_BLEN, b, 0, 0), PR(R_BRATE, b, 0, 0), PR(R_BDIR, b, 0, 0), PR(R_BTRANS, b, 0, 0));
@@ -805,6 +814,7 @@ static void build_pages(void)
             more(PR(R_BRKSET, 0, 0, BRK_ALEN));
             more(PR(R_BRKSET, 0, 0, BRK_BLEN));
         }
+        more(PR(R_NOSWING, p, 0, 0));                  /* the same place on every part (the amount: HOME's) */
         break;
     case V_PART:                                       /* the part's sound */
         if (is_drum()) {
@@ -1078,6 +1088,7 @@ static int copy_part(int dst, int src, int part)
         d->bass[part - NKIT] = a->bass[part - NKIT];
     else
         d->brk = a->brk;
+    d->noswing = (uint8_t)((d->noswing & ~(1u << part)) | (a->noswing & 1u << part));   /* its swing on/off too */
     clear_lanes(dst, part);
     for (k = 0; k < NLANE; k++) {                     /* a copy lands on pattern dst: never copied again */
         const lane_t *l = &proj.arr.lane[k];
@@ -3587,7 +3598,7 @@ static const char *readout_name(pref_t *rp)
         nm = t;
     } else if (in_pattern(r)) {                          /* (it changes with the pattern) */
         int pp = r.kind == R_DLEN || r.kind == R_DRATE ? r.a : r.kind >= R_BLEN && r.kind <= R_BTRANS ? NKIT + r.a
-                 : r.kind == R_SWING ? PART_909 : part_view() ? ui.part : PART_909;
+                 : r.kind == R_SWING ? PART_909 : r.kind == R_NOSWING ? r.a : part_view() ? ui.part : PART_909;
         put_s(put_s(put_i(put_s(t, "P"), seq.ppat[pp] + 1), "  "), nm);
         nm = t;
     }

@@ -794,7 +794,10 @@ static int expect(const char *what, const char *val)
         got = seq_cue_of(&seq, PART_909) + 1;
     else if (!strncmp(what, "ppat", 4))            /* ppatP: part P's pattern, 1-based */
         got = seq.ppat[atoi(what + 4) % NPARTS] + 1;
-    else if (!strcmp(what, "perftest"))            /* -1 idle, 0..2 running, 3 done */
+    else if (!strncmp(what, "noswing", 7)) {       /* noswingP: part P plays straight (its own pattern's bit) */
+        int pt = atoi(what + 7) % NPARTS;
+        got = proj.pat[seq.ppat[pt]].noswing >> pt & 1;
+    } else if (!strcmp(what, "perftest"))            /* -1 idle, 0..2 running, 3 done */
         got = perf.test;
     else if (!strncmp(what, "perfres", 7))         /* perfresK: scenario K's share of the CPU x 10 */
         got = perf.res_load[atoi(what + 7) % 3];

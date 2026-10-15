@@ -125,7 +125,7 @@ page. SEQ, EDIT and ARP show the part you choose with ALGORITHM.
 | HOME | The pattern: all five parts, which pattern they play, mutes. Again: the song, and again back. In a list, back; in a question, no. |
 | SAVE | Save everything (while playing: when you stop). Hold it to copy the pattern; then a white key pastes it. |
 | ARP | TB-3PO, the 303 line generator (on a 303). |
-| SEQ | The selected part's steps, with its LENGTH and RATE (on a 303 also DIRECTION and TRANSPOSE). |
+| SEQ | The selected part's steps, with its LENGTH, RATE and SWING on or off (on a 303 also DIRECTION and TRANSPOSE). |
 | PLAY | Start and stop. |
 | REC | Record on and off: drum hits, 303 notes, knob moves, and on the SONG screen the song. On a 303 the keys become a keyboard while it's on. |
 | White keys | Steps. On HOME, patterns. On MASTER and FX they do nothing. |
@@ -254,7 +254,8 @@ are.
 
 **The pages.** EDIT shows the selected track's sound (one page, two for the 909's kick), then KIT
 with ACCENT, how much louder accented steps are. A track's DRIVE and DIST are in SEL's list,
-under MORE. SEQ has the machine's LENGTH and RATE. SWING is on HOME, because it swings every part.
+under MORE. SEQ has the machine's LENGTH and RATE; SWING is the last row of its SEL list: ON follows
+HOME's swing, OFF plays this machine's pattern straight.
 
 Each track's level, pan and reverb and delay sends are on the mixer: press LFO and go to 909 MIX
 or 808 MIX, which shows all eleven levels at once. The black keys pick a track and the knobs are
@@ -294,7 +295,8 @@ Each 303 has its own, and both are off at power-on.
 **The pages.** EDIT has TONE (CUTOFF, RESO, ENVMOD, DECAY) and VOICE (ACCENT, WAVE, saw or
 square, DRIVE, SLIDE time); TUNE, VOLUME, DRIVE TYPE (off, soft or RAT) and ACCENT DECAY are in
 SEL's list. SEQ has the line's LENGTH (1–64 steps), RATE, DIRECTION (forward, reverse, ping-pong
-or random) and TRANSPOSE. Each 303's level, pan and sends are on the mixer (LFO).
+or random) and TRANSPOSE; SWING (ON or OFF, as on the drums) is the last row of its SEL list. Each
+303's level, pan and sends are on the mixer (LFO).
 
 ---
 
@@ -351,7 +353,8 @@ snare where you want them and let the generator play with the rest.
 - RETRIG 2X, 3X, 4X and 8X: the chance in each bar of stuttering a beat at that rate.
 
 In SEL's list: PHRASE, the length of a phrase (2, 4, 8 or 16 bars, or off), and A LENGTH and B
-LENGTH, how often a new slice is chosen (every 1/4 bar to every 8 bars).
+LENGTH, how often a new slice is chosen (every 1/4 bar to every 8 bars), and SWING: OFF plays the
+break straight.
 
 **The loops.** EDIT has LOOP A, LOOP B, B CHANCE (the chance of switching to loop B in the last
 bar of a phrase; with PHRASE off, in any bar) and PITCH. Press EDIT again for FILTER and LEVEL.
@@ -424,8 +427,10 @@ PATTERN clears all five.
 a song.
 
 **Lengths and swing.** Parts can have different lengths, so they drift against each other. The
-909's length sets the length of a bar, and the 909's pattern holds the swing, which applies to
-every part. Swing delays every second 16th note: 50% is straight, 75% the most.
+909's length sets the length of a bar, and the 909's pattern holds the swing amount (HOME's SWING).
+Swing delays every second 16th note: 50% is straight, 75% the most. Each part follows it unless its
+SWING (the last row of SEL's list on its SEQ screen) is OFF; that setting is part of the part's own
+pattern.
 
 HOME's knobs are for playing live: TEMPO, SWING, and the master's FILTER and PUMP.
 
