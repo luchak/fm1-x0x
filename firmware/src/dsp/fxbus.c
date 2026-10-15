@@ -135,7 +135,7 @@ void fxbus_set_bpm(fxbus_t *f, float bpm)
     }
 }
 
-void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len)
+void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len, float *rv_buf)
 {
     uint8_t *p = (uint8_t *)f;
     for (unsigned i = 0; i < sizeof(*f); ++i)
@@ -144,6 +144,11 @@ void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len)
         dly_buf[i] = 0;
     f->dbuf = dly_buf;
     f->dlen = dly_len;
+    for (int i = 0; i < FX_RV_FLOATS; ++i)
+        rv_buf[i] = 0.0f;
+    f->ap = rv_buf;
+    f->apr = rv_buf + FX_RV_AP_TOTAL;
+    f->comb = (int16_t *)(rv_buf + FX_RV_AP_TOTAL + FX_RV_APR_TOTAL);
 
     f->rv_decay = 0.62f; f->rv_tone = 0.45f; f->rv_level = 0.8f;
     d9_biquad_set(&f->rv_hp, D9_HP, 150.0f, 0.7071f);
