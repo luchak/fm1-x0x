@@ -124,7 +124,36 @@ static void test_swing_and_rates(void)
         double want = k * 44100.0 * 60.0 / 120.0 / 6.0;
         CHECK(abs((int)evs[i].t - (int)(want + 0.5)) <= 1, "triplet %d at %u want %.1f", k, evs[i].t, want);
     }
-    printf("  swing 75%%, 1/16T unswung: checked\n");
+    /* a part switched off plays straight; the others keep the groove */
+    reset();
+    S.bpm = 120.0f;
+    P[0].swing = 100;
+    P[0].noswing = 1u << 1;                          /* the 808: off (its own pattern's bit) */
+    P[0].drum[0].hit[7][0] = 0xFFFFu;
+    P[0].drum[1].hit[7][0] = 0xFFFFu;
+    seq_start(&S);
+    run(44100 * 2);
+    for (i = 0, k = 0; (i = find(E_DRUM, 7, i)) >= 0 && k < 16; i++, k++) {
+        double want = k * step + ((k & 1) ? 0.5 * step : 0.0);
+        CHECK(abs((int)evs[i].t - (int)(want + 0.5)) <= 1, "909 swung CH %d at %u want %.1f", k, evs[i].t, want);
+    }
+    for (i = 0, k = 0; (i = find(E_DRUM, 107, i)) >= 0 && k < 16; i++, k++)
+        CHECK(abs((int)evs[i].t - (int)(k * step + 0.5)) <= 1, "808 straight CH %d at %u want %.1f", k, evs[i].t, k * step);
+    CHECK(k == 16, "808 CH hits %d", k);
+    /* switched off while a late step is due: that one stays late, the part is on the grid after it */
+    reset();
+    S.bpm = 120.0f;
+    P[0].swing = 100;
+    P[0].drum[1].hit[7][0] = 0xFFFFu;
+    seq_start(&S);
+    run((uint32_t)(0.5 * step));                     /* step 1 has played; step 2 is due late, at 1.5 steps */
+    P[0].noswing = 1u << 1;
+    run((uint32_t)(15.25 * step));
+    for (i = 0, k = 0; (i = find(E_DRUM, 107, i)) >= 0 && k < 16; i++, k++) {
+        double want = k * step + (k == 1 ? 0.5 * step : 0.0);
+        CHECK(abs((int)evs[i].t - (int)(want + 0.5)) <= 1, "808 CH %d at %u want %.1f (switched off before step 2)", k, evs[i].t, want);
+    }
+    printf("  swing 75%%, 1/16T unswung, a part switched off: checked\n");
 }
 
 /* Set up the swing tests' parts: the 909's closed hat on every step, and 303 A playing in direction dir
@@ -163,16 +192,16 @@ static double swing_samples(uint32_t L, int sw)
     return (double)(L / 200u * (uint32_t)sw) / 256.0;
 }
 
-/* Return the swing in force at sample t (the last change at or before it), or -1 if a change fell
- * within a sample of t. */
-static int swing_at(const uint32_t *ct, const uint8_t *cs, int n, uint32_t t)
+/* Return the swing track tr had at sample t (the last change at or before it): the amount, or 0 if
+ * its bit was off. Return -1 if a change fell within a sample of t. */
+static int swing_at(const uint32_t *ct, const uint8_t *cs, const uint8_t *cm, int n, int tr, uint32_t t)
 {
-    int i, v = cs[0];
+    int i, v = 0;
     for (i = 0; i < n; i++) {
         if (i && ct[i] + 1 >= t && ct[i] <= t + 1)
             return -1;
         if (ct[i] <= t)
-            v = cs[i];
+            v = (cm[i] >> tr & 1u) ? 0 : cs[i];
     }
     return v;
 }
@@ -187,13 +216,15 @@ static void clock_ticks(int n, uint32_t per_tick)
     }
 }
 
-/* Check that turning the swing while playing never moves a part off its grid.
+/* Check that turning the swing, or a part's swing on and off, while playing never moves a part off its
+ * grid.
  *
  * Play the 909 and 303 A at 16ths and at 32nds, the 303 in every direction and at lengths 16, 7 and 3,
- * changing the swing 60 times at pseudo-random moments (from a fixed seed, so every run is the same).
- * Every step must land on its grid slot, late by the swing in force when it was scheduled (at the step
- * before) if it is an odd one in play order, else on its slot. A step scheduled within a sample of a
- * change is skipped: either swing is right for it. */
+ * changing the swing 60 times at pseudo-random moments (from a fixed seed, so every run is the same);
+ * at each change, the 909's and 303 A's swing each also switch on or off with a chance of one in four.
+ * Every step must land on its grid slot, late by its part's swing in force when it was scheduled (at
+ * the step before) if it is an odd one in play order, else on its slot. A step scheduled within a
+ * sample of a change is skipped: either swing is right for it. */
 static void test_swing_grid(void)
 {
     static const int LENS[] = {16, 7, 3}, RATES[] = {RATE_16, RATE_32};
@@ -204,22 +235,28 @@ static void test_swing_grid(void)
                 int rate = RATES[ri], len = LENS[li], n = 0, part;
                 const double step = 44100.0 * 60.0 / 120.0 / (rate == RATE_32 ? 8 : 4);
                 uint32_t ct[64], r = 0x9E3779B9u ^ (uint32_t)(ri * 256 + dir * 16 + len), L;
-                uint8_t cs[64];
+                uint8_t cs[64], cm[64];
 
                 swing_setup(dir, len, rate);
                 L = seq_step_q8(&S, rate);
 
-                /* Play, changing the swing every 1000 to 9000 samples; log each change (when, and the new
-                 * swing). */
+                /* Play, changing the swing every 1000 to 9000 samples and at times switching a part's swing
+                 * on or off; log each change (when, the new swing, and the parts' bits). */
                 ct[n] = 0;
-                cs[n++] = 100;
+                cs[n] = 100;
+                cm[n++] = 0;
                 seq_start(&S);
                 while (n < 61) {
                     r = r * 1664525u + 1013904223u;
                     run(1000u + (r >> 8) % 8000u);
                     P[0].swing = (uint8_t)((r >> 20) % 101u);
+                    if (!(r >> 4 & 3u))
+                        P[0].noswing ^= 1u << 0;                 /* the 909 on/off */
+                    if (!(r >> 6 & 3u))
+                        P[0].noswing ^= 1u << TRK_BASS0;         /* 303 A on/off */
                     ct[n] = now;
-                    cs[n++] = P[0].swing;
+                    cs[n] = P[0].swing;
+                    cm[n++] = P[0].noswing;
                 }
 
                 /* Check that each step of the 909's hats, then of 303 A's notes, lands on its slot plus its
@@ -227,7 +264,8 @@ static void test_swing_grid(void)
                 for (part = 0; part < 2; part++) {
                     int kind = part ? E_ON : E_DRUM, a = part ? 0 : 7, i, k, prev = -1, bad = 0;
                     for (i = 0, k = 0; (i = find(kind, a, i)) >= 0; prev = i++, k++) {
-                        int pos = part ? evs[i].b - 36 : k % 16, sw = k ? swing_at(ct, cs, n, evs[prev].t) : 0;
+                        int pos = part ? evs[i].b - 36 : k % 16;
+                        int sw = k ? swing_at(ct, cs, cm, n, part ? TRK_BASS0 : 0, evs[prev].t) : 0;
                         double want;
                         if (sw < 0)
                             continue;
@@ -242,8 +280,8 @@ static void test_swing_grid(void)
                 }
             }
     CHECK(nchecked > 3000, "checked %d steps: too few (the changes skipped too many)", nchecked);
-    printf("  swing changed while playing, 16ths and 32nds, every direction, lengths 16/7/3: %d steps on the grid\n",
-           nchecked);
+    printf("  swing and on/off changed while playing, 16ths and 32nds, every direction, lengths 16/7/3: "
+           "%d steps on the grid\n", nchecked);
 }
 
 /* Check that on an external clock every step lands on its tick, late by the swing if it is an odd one in

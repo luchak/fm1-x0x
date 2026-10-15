@@ -66,11 +66,12 @@ static int part_rate(const seq_t *s, int t)
     return (is_drum(t) ? dpart(s, t)->rate : t == TRK_BRK ? RATE_16 : bpart(s, t - TRK_BASS0)->rate) & 3;
 }
 
-/* swing offset of a step, Q8: odd 16ths / 32nds come late; triplets are never swung */
-static uint32_t swing_q8(const seq_t *s, int rate, uint32_t step_q8)
+/* Return the swing offset of track t's step, Q8: odd 16ths / 32nds come late; triplets are never
+ * swung, nor a part whose own pattern switches swing off. */
+static uint32_t swing_q8(const seq_t *s, int t, int rate, uint32_t step_q8)
 {
     uint32_t sw = s->pat[s->ppat[TRK_DRUM]].swing;   /* the 909 is the bar: its pattern's groove */
-    if (rate == RATE_16T || rate == RATE_8T || !sw)
+    if (rate == RATE_16T || rate == RATE_8T || !sw || (s->pat[s->ppat[t]].noswing >> t & 1u))
         return 0;
     if (sw > 100u)
         sw = 100u;
@@ -131,7 +132,7 @@ static uint32_t next_swing_delay(seq_t *s, int t, int p, int rate, uint32_t L)
         odd = next_pos(s, t, p, 0) & 1;
         break;
     }
-    return odd ? swing_q8(s, rate, L) : 0;
+    return odd ? swing_q8(s, t, rate, L) : 0;
 }
 
 static void midi(const seq_sink_t *o, uint8_t st, uint8_t d1, uint8_t d2)

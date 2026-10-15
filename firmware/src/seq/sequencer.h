@@ -35,7 +35,8 @@
  * Which steps are odd follows the order a part plays them: forward and ping-pong count by position
  * (an odd-length pattern keeps the same groove on every pass), reverse from the step it starts on,
  * random by the steps played since the start. The internal and the external clock use the same
- * rule, so the two agree.
+ * rule, so the two agree. A part whose own pattern switches swing off (pattern_t noswing) plays
+ * every step on its slot.
  *
  * 303 semantics (as the TB-303 and Open303's sequencer):
  *   NOTE  plays; the gate falls at half the step, unless the step slides (BS_SLIDE)

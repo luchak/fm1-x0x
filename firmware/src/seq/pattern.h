@@ -73,7 +73,8 @@ typedef struct {
     bpart_t bass[NBASS];
     brkpart_t brk;
     uint8_t swing;                    /* 0..100: 0 = straight (50 %), 100 = 75 % shuffle */
-    uint8_t rsv[3];
+    uint8_t noswing;                  /* bit t = part t plays straight (track index = PART_*); 0 = all swing */
+    uint8_t rsv[2];
 } pattern_t;
 
 static inline int bstep_gate(const bstep_t *s) { return s->flags & BS_GATE_MASK; }
