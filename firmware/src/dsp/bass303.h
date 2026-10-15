@@ -91,6 +91,7 @@ typedef struct bass303 {
     int wave;                /* 0 saw, 1 square */
     int drv_type;
     float drv_amt;
+    float drv_makeup, drv_xf;   /* after the drive: makeup gain; RAT dry -> wet crossfade (1 = wet) */
 
     /* fixed coefficients (sample-rate dependent; set in bass303_init) */
     float rc1_c, rc2_c;                 /* filter-envelope RC followers (3 ms, 15 ms) */

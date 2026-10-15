@@ -395,6 +395,8 @@ static const setting_t settings[] = {
     { "default", { DEF }, 1 },
     { "reso+envmod", { 40, 120, 120, 90, 64, 0, 64, 102, 0, 1, 21, 7 }, 1 },
     { "square+accent", { 64, 80, 80, 64, 127, 1, 64, 102, 0, 1, 21, 7 }, 1 },
+    /* (info: X0X rescales drive.h's drive, Volume after it, makeup, the RAT's taper and tone, so
+     * these differ from the reference by design; their ctrl 4 vs 1 rows still check the port) */
     { "drive soft", { 64, 64, 64, 64, 64, 0, 64, 90, 80, 1, 21, 7 }, 0 },
     { "drive RAT", { 64, 64, 64, 64, 64, 0, 64, 90, 80, 2, 21, 7 }, 0 },
 };
