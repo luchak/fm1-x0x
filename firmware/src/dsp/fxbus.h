@@ -4,8 +4,13 @@
  *
  *   out = volume * glue( dist( dry + reverb(rev) + delay(dly) ) )
  *
- *  - Reverb: four combs + two allpasses, the comb loop quantised to 12 bits
- *    (the early-rack grain), damping in the loop, HPF on the send.
+ *  - Reverb, two types (fxbus_set_rv_type; RvDec, RvTone, RvHPF and RvLvl serve both):
+ *    CLASSIC is 9W9's: four combs + two allpasses, the comb loop quantised to 12 bits
+ *    (the early-rack grain), damping in the loop, HPF on the send. ROOM (X0X) is
+ *    smoother: the HPF, four allpass diffusers, then an 8-line feedback delay network
+ *    (Hadamard mixing, a one-pole damper per line) whose lines are kept block-float:
+ *    8-bit mantissas sharing an exponent per 16 samples (headroom without clipping,
+ *    precision that follows the tail down, in CLASSIC's memory).
  *  - Delay: a note division of the tempo, slewed so time changes warp instead of
  *    clicking, feedback through a darkening one-pole, 12-bit write, HPF on the
  *    send. TYPE = DIGI is 9W9's delay exactly. TYPE = TAPE (an X0X addition, for
@@ -17,9 +22,8 @@
  *
  * The delay line is int16 (9W9 writes it at 12 bits, so nothing is lost; values
  * past +-16 full scale saturate) and is passed in by the caller (.pool), as are the
- * reverb's lines (FX_RV_FLOATS): float allpasses, then int16 combs (also 12-bit in
- * 9W9). Both effects go idle (no per-sample work) once their input and their lines
- * are silent. */
+ * reverb's lines (fx_rv_buf_t, shared by the two types: switching clears it). Both
+ * effects go idle (no per-sample work) once their input and their lines are silent. */
 #pragma once
 #include <stdint.h>
 #include "x0x_param.h"
@@ -28,8 +32,73 @@
 #define FX_RV_COMB_TOTAL (1116 + 1188 + 1277 + 1356)
 #define FX_RV_AP_TOTAL (556 + 441)
 #define FX_RV_APR_TOTAL (579 + 457)   /* X0X: the right side's allpasses */
-/* the reverb's buffer, in floats (float-aligned): the allpasses, then the combs */
-#define FX_RV_FLOATS (FX_RV_AP_TOTAL + FX_RV_APR_TOTAL + (FX_RV_COMB_TOTAL + 1) / 2)
+/* ROOM's state (fx_room_t) shares the reverb's buffer with CLASSIC's lines (fx_rv_buf_t), so the two
+ * types cost the larger of the two, not the sum. The design and the block format:
+ * docs/plans/2026-10-15-room-reverb.md.
+ *
+ * Each of the 8 lines is a ring of 16-sample blocks. A block is 16 8-bit mantissas and one exponent
+ * byte. A line of length L has L / 16 + 1 blocks, the fewest that hold its L samples: at the start of
+ * a block of writes, the read's first block is the one the write is about to replace, so the reads
+ * are fetched before that block is committed (fx_room). */
+#define FX_RM_N 8
+#define FX_RM_BLK 16
+/* The lines' lengths in samples, shortest first. All must be equal modulo 16 (fx_rm_fetch_all). */
+#define FX_RM_L0 1123
+#define FX_RM_L1 1283
+#define FX_RM_L2 1459
+#define FX_RM_L3 1571
+#define FX_RM_L4 1747
+#define FX_RM_L5 1907
+#define FX_RM_L6 2083
+#define FX_RM_L7 2243
+#define FX_RM_NB(l) ((l) / FX_RM_BLK + 1)
+#define FX_RM_BLOCKS (FX_RM_NB(FX_RM_L0) + FX_RM_NB(FX_RM_L1) + FX_RM_NB(FX_RM_L2) + FX_RM_NB(FX_RM_L3) + \
+                      FX_RM_NB(FX_RM_L4) + FX_RM_NB(FX_RM_L5) + FX_RM_NB(FX_RM_L6) + FX_RM_NB(FX_RM_L7))
+/* The input diffusers' lengths and gains, and their lines' total. */
+#define FX_RM_D0 211
+#define FX_RM_D1 157
+#define FX_RM_D2 397
+#define FX_RM_D3 293
+#define FX_RM_G0 0.7f
+#define FX_RM_G1 0.7f
+#define FX_RM_G2 0.65f
+#define FX_RM_G3 0.65f
+#define FX_RM_DIF_TOTAL (FX_RM_D0 + FX_RM_D1 + FX_RM_D2 + FX_RM_D3)
+/* Silent blocks in a row after which every ring holds only silence: ROOM is idle. */
+#define FX_RM_QUIET (FX_RM_NB(FX_RM_L7) + 2)
+typedef struct {
+    /* the 16 samples in progress, as floats: each line's block being written, and its decoded reads */
+    float stage[FX_RM_N][FX_RM_BLK];
+    float read[FX_RM_N][FX_RM_BLK];
+    /* each line's damper, lp = a lp + c in: c is the loop gain, times the mix's 1/sqrt(8), times 1 - a */
+    float c[FX_RM_N], a[FX_RM_N], lp[FX_RM_N];
+    /* the outputs' filter, y = (s - tap_a s[-1]) tap_k, and its state for L and R (fx_room_coeffs) */
+    float tap_a, tap_k, tap_zl, tap_zr;
+    /* each line's ring: its first block in exp / man, its number of blocks, and the block being
+     * written (the read's first block too: see above) */
+    uint16_t base[FX_RM_N], nblk[FX_RM_N], wblk[FX_RM_N];
+    /* the input diffusers: each one's place, and their lines, x4096 (they peak at about 6.5 at full
+     * send, under the int16 range's 8) */
+    int16_t dif_pos[4];
+    int16_t dif[FX_RM_DIF_TOTAL];
+    /* the lines' blocks: exponents, and 16 mantissas each */
+    int8_t exp[FX_RM_BLOCKS];
+    int8_t man[FX_RM_BLOCKS * FX_RM_BLK];
+} fx_room_t;
+_Static_assert(FX_RM_BLOCKS <= 65535, "ROOM's rings: their blocks are numbered in uint16_t");
+_Static_assert(FX_RM_D0 <= 32767 && FX_RM_D1 <= 32767 && FX_RM_D2 <= 32767 && FX_RM_D3 <= 32767,
+               "ROOM's diffusers: their places are int16_t");
+/* The reverb's buffer (the caller's: fxbus_init): either type's lines, one type at a time. Each is
+ * reached through its own member, and fxbus_set_rv_type clears the buffer between them. */
+typedef union {
+    struct {
+        float ap[FX_RV_AP_TOTAL];     /* the left's allpasses (9W9's) */
+        float apr[FX_RV_APR_TOTAL];   /* the right's */
+        int16_t comb[FX_RV_COMB_TOTAL];
+    } classic;
+    fx_room_t room;
+} fx_rv_buf_t;
+enum { FX_RV_CLASSIC, FX_RV_ROOM };
 
 enum { FX_VOLUME, FX_DIST, FX_DRIVE, FX_COMP,
        FX_RV_DECAY, FX_RV_TONE, FX_RV_HPF, FX_RV_LEVEL,
@@ -48,6 +117,12 @@ struct fxbus {
     float *apr;                       /* X0X stereo: the right side reads the combs with alternating
                                        * signs through its own allpasses (the left is 9W9's) */
     int32_t aposr[2];
+    int32_t rv_type;                  /* FX_RV_CLASSIC / FX_RV_ROOM */
+    fx_rv_buf_t *rv_buf;              /* the reverb's buffer: CLASSIC's lines, or ROOM's */
+    float rm_out;                     /* ROOM: output gain (the energy match to CLASSIC) */
+    int32_t rm_quiet;                 /* ROOM: blocks committed silent (input and lines), in a row */
+    uint8_t rm_pos;                   /* ROOM: the place in the blocks being filled (all lines together) */
+    uint8_t rm_heard;                 /* ROOM: the block being filled: input or a line not silent so far */
     /* delay */
     float dl_time_ms, dl_fdbk, dl_tone, dl_level, bpm, wear;
     int32_t dl_div, dl_type;
@@ -67,8 +142,9 @@ struct fxbus {
 };
 typedef struct fxbus fxbus_t;
 
-void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len, float *rv_buf);   /* rv_buf: FX_RV_FLOATS */
+void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len, fx_rv_buf_t *rv_buf);
 void fxbus_set_bpm(fxbus_t *f, float bpm);
+void fxbus_set_rv_type(fxbus_t *f, int type);   /* FX_RV_CLASSIC (fxbus_init's) / FX_RV_ROOM: a change clears the tail */
 void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *dly, float *out, int n);
 /* X0X stereo: dry in L / R, the sends mono; with everything centred and no reverb, out_l and out_r
  * are fxbus_process's out exactly */
