@@ -206,6 +206,43 @@ static void drv_gains(bass303_t *b)
 
 static int drive_on(const bass303_t *b) { return b->drv_type != BASS303_DRV_OFF && b->drv_amt > 0.0f; }
 
+/* the Drive pot that drives as `drive` did before the drive scaling, for a project saved before it
+ * (project.c, sound revision 6): Soft hits its shaper at the same level, RAT its clipper (the op-amp's gain
+ * at 1 kHz, times the Volume, which came before the drive then); bass303_volume_pre_rescale keeps the
+ * level. 0 stays 0 (bypass); beyond the knob's new range, its end */
+int bass303_drive_pre_rescale(int type, int volume, int drive)
+{
+    const float DB = 6.02059991f;                              /* 20 log10(2): dB from log2 */
+    float n = (float)drive * (1.0f / 127.0f), p;
+    float vol_db = -60.0f + 60.0f * (float)volume * (1.0f / 127.0f) - DB * fm_log2f(DRV_REF);
+    if (drive <= 0 || type == BASS303_DRV_OFF)
+        return drive;
+    if (type == BASS303_DRV_SOFT)                              /* 24 n dB at the Volume's level */
+        p = 127.0f * (24.0f * n + vol_db + 2.0f) * (1.0f / 32.0f);
+    else {                                                     /* drive.h's dist = n (rat_dist) */
+        float g = DB * fm_log2f(1.0f + fm_maxf(n, 0.001f) * (1.0f / 81e-5f)) + vol_db;
+        p = g <= 0.0f ? (float)RAT_XF
+                      : (float)RAT_XF + (127.0f - RAT_XF) * fm_powf(fm_minf(g * (1.0f / 61.8f), 1.0f), 1.0f / 1.3f);
+    }
+    return (int)fm_clampf(p + 0.5f, 1.0f, 127.0f);
+}
+
+/* and the Volume pot that keeps the level it had: the drive's input level is kept (above), so
+ * Soft's output is the old one times the makeup, and RAT's (which the Volume before it didn't
+ * change, only how hard it clipped) the old one times the makeup and Volume / DRV_REF */
+int bass303_volume_pre_rescale(int type, int volume, int drive)
+{
+    const float DB = 6.02059991f;
+    int p = bass303_drive_pre_rescale(type, volume, drive), rat = type == BASS303_DRV_RAT;
+    float vdb = -60.0f + 60.0f * (float)volume * (1.0f / 127.0f), mk;
+    if (drive <= 0 || type == BASS303_DRV_OFF)
+        return volume;
+    mk = DB * fm_log2f((rat ? makeup_rat : makeup_soft)[p])
+         + (rat ? DRV_RISE_RAT : DRV_RISE_SOFT) * (float)p * (1.0f / 127.0f);
+    vdb = (rat ? DB * fm_log2f(DRV_REF) : vdb) - mk;
+    return (int)fm_clampf((vdb + 60.0f) * (127.0f / 60.0f) + 0.5f, 0.0f, 127.0f);
+}
+
 /* RAT op-amp: drive.h rat::State::update_op_amp_coeffs + the correction one-pole cutoff */
 static void rat_coeffs(bass303_t *b)
 {

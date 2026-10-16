@@ -16,6 +16,7 @@
 #include "x0x.h"
 #include "../dsp/drum909.h"            /* DR_SD (the sound's revisions) */
 #include "../dsp/master.h"             /* MST_* (the sound's revisions) */
+#include "../dsp/bass303.h"            /* BASS303_*, the drive's revision */
 #include "lz.c"
 
 project_t proj;
@@ -410,6 +411,33 @@ static void sound_rev2(void)
     proj.sound.v[T_FX][1][0] = (uint8_t)(proj.sound.v[T_FX][0][FX_DL_TYPE] ? 16 + proj.sound.v[T_FX][0][FX_DL_WEAR] * 111 / 127 : 0);
 }
 
+/* rev 6: the 303's drive rescaled (Volume after it; bass303.c). Each 303's DRIVE to the pot that
+ * drives as it did, its VOLUME to the one that keeps its level; their lanes the same (a DRIVE
+ * lane's steps each mapped, a VOLUME lane's moved as its pot moved) */
+static void sound_rev6(void)
+{
+    int b, i, s;
+    for (b = 0; b < NBASS; b++) {
+        uint8_t *p = proj.sound.v[T_303][b];
+        int typ = p[BASS303_DRVTYPE], vol = p[BASS303_VOLUME], dv;
+        dv = bass303_volume_pre_rescale(typ, vol, p[BASS303_DRIVE]) - vol;
+        for (i = 0; i < NLANE; i++) {
+            lane_t *l = &proj.arr.lane[i];
+            if (!l->used || l->t != T_303 || l->v != b || (l->i != BASS303_DRIVE && l->i != BASS303_VOLUME))
+                continue;
+            for (s = 0; s < NSTEPS; s++) {
+                int x = l->val[s];
+                if (x == MOT_NONE)
+                    continue;
+                x = l->i == BASS303_DRIVE ? bass303_drive_pre_rescale(typ, vol, x) : x + dv;
+                l->val[s] = (uint8_t)(x < 0 ? 0 : x > 127 ? 127 : x);
+            }
+        }
+        p[BASS303_DRIVE] = (uint8_t)bass303_drive_pre_rescale(typ, vol, p[BASS303_DRIVE]);
+        p[BASS303_VOLUME] = (uint8_t)(vol + dv);
+    }
+}
+
 /* a BD gained REV and DLY before its PAN (909: 8 -> 10, 808: 7 -> 9): the pan and its motion move, the sends start
  * at none (as the kick had) */
 static void sound_bd_sends(int t, int pan)            /* (rev 3: the 909's at 8; rev 4: the 808's at 7) */
@@ -503,6 +531,8 @@ int project_load(void)
         sound_rev2();
     if (sound_ok && proj.set.snd_rev < 5)             /* before the break's FILTER: off (its pot held a 0) */
         proj.sound.v[T_BRK][0][2] = engine_param(T_BRK, 0, 2)->def;
+    if (sound_ok && proj.set.snd_rev < 6)             /* before the 303's drive was rescaled */
+        sound_rev6();
     proj.set.snd_rev = PROJ_SND_REV;
     return bad ? -1 : 0;
 }

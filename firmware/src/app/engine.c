@@ -266,8 +266,8 @@ void engine_sound_defaults(sound_t *s)
         s->v[T_303][v][BASS303_RESO] = 100;
         s->v[T_303][v][BASS303_ENVMOD] = 85;
         s->v[T_303][v][BASS303_ACCENT] = 100;
-        s->v[T_303][v][BASS303_VOLUME] = 127;
-        s->v[T_303][v][BASS303_DRIVE] = 45;
+        s->v[T_303][v][BASS303_VOLUME] = 107;           /* (before the drive's rescaling: Volume 127, */
+        s->v[T_303][v][BASS303_DRIVE] = 127;            /* Drive 45; bass303_drive_pre_rescale / volume_pre_rescale) */
         s->v[T_303][v][BASS303_DRVTYPE] = 2;
         s->v[T_MIX][PART_303A + v][MX_LEVEL] = 74;   /* the RAT makes it dense: -5 dB (square law) */
         s->v[T_MIX][PART_303A + v][MX_DLY] = v ? 60 : 80;

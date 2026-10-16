@@ -159,3 +159,7 @@ int bass303_nparams(void);
 const x0x_param_t *bass303_param(int i);
 void bass303_set(bass303_t *b, int i, int value);
 int bass303_get(const bass303_t *b, int i);
+/* a Drive pot saved before the drive scaling (Volume after the drive, the RAT's taper): the pot that
+ * drives the same now, for its type and Volume (before a project's sound revision 6) */
+int bass303_drive_pre_rescale(int type, int volume, int drive);
+int bass303_volume_pre_rescale(int type, int volume, int drive);   /* (the old Drive): the Volume that keeps its level */

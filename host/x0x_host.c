@@ -25,6 +25,8 @@
  *   expect WHAT VALUE            check state (playing, pattern, cue, view-part, ...): exit 1 on mismatch;
  *                                VALUE "<N" / ">N" is a bound
  *   reboot                       save nothing; re-run boot from the simulated flash (persistence test)
+ *   sndrev N                     mark the project's sound as revision N (a save then loads through
+ *                                the migrations after N, as one saved by that firmware would)
  *   snapline B                   remember 303 B's line on the pattern shown (expect linechgB: 1 = it changed since)
  *   projimg FILE                 a project as the FM-1 holds it in RAM (fm1_debug peek of proj): saved
  *                                to the simulated flash and booted, as if it had been made here
@@ -1179,6 +1181,8 @@ int main(int argc, char **argv)
             memcpy(pat_snap, proj.pat, sizeof pat_snap);
         } else if (!strcmp(cmd, "fakecrash")) {
             host_crash = 1;
+        } else if (!strcmp(cmd, "sndrev")) {           /* sndrev N: the project's sound as revision N (saved so) */
+            proj.set.snd_rev = (uint8_t)atoi(a);
         } else if (!strcmp(cmd, "tearsave")) {          /* tearsave N: the next save stops after N object writes */
             store_tear = atoi(a);
         } else if (!strcmp(cmd, "reboot")) {
