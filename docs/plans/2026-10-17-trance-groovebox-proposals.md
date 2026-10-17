@@ -851,6 +851,11 @@ additions, not a new machine.
 - An hour or two of listening gives the real numbers: events per 8 bars in each section, typical
   lengths, how many land on phrase boundaries, which materials each genre uses.
 - Those set SCATTER's defaults and the preset list, and settle whether LAND-ON earns its place.
+- The template is `docs/plans/texture-census.xlsx`:
+  - a Log with dropdowns, where times convert to bars and phrase lines from each track's BPM and
+    first downbeat;
+  - Tracks and Sections sheets;
+  - a Summary that computes densities, phrase alignment, lengths and materials.
 - I can't listen, but I can measure WAVs you give me (onsets, spectral flatness, the exposed
   intros and breakdowns) to check the log.
 
