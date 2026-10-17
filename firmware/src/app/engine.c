@@ -59,6 +59,7 @@ static uint32_t guard_avg_q8, guard_calm;
 volatile uint32_t eng_guard_count;
 void engine_guard_enable(int on) { guard_enabled = (uint8_t)(on != 0); }
 int engine_guard_active(void) { return guard_on; }
+float engine_fx_dl_rev(void) { return fx.dl_rv; }
 void engine_load(uint32_t pct, uint32_t frames)
 {
     guard_avg_q8 = (guard_avg_q8 * 15u + pct * 256u) / 16u;
@@ -127,6 +128,16 @@ int engine_nvoices(int t)
     }
 }
 
+/* Return whether slot (t, v, i) of a sound is one the engine plays: an engine's parameter, or the
+ * delay's send into the reverb (T_FX's voice 1: it has no parameter slot). Every walk that applies a
+ * sound to the engine asks this, so that such a slot is applied by all of them. */
+int engine_is_param(int t, int v, int i)
+{
+    if (t == T_FX && v == 1)
+        return i == FX_V1_DL_REV;
+    return t >= 0 && t < NTARGETS && v >= 0 && v < engine_nvoices(t) && i >= 0 && i < engine_nparams(t, v);
+}
+
 int engine_nparams(int t, int v)
 {
     switch (t) {
@@ -179,7 +190,12 @@ static void apply_param(int t, int v, int i, int val)    /* ISR */
     case T_808: drum808_set(&d808, v, i, val); break;
     case T_303: if (v >= 0 && v < NBASS) bass303_set(&b303[v], i, val); break;
     case T_BRK: breaks_set(&brk, BRK_NSET + i, val); break;
-    case T_FX: fxbus_set(&fx, i, val); break;
+    case T_FX:
+        if (v == 0)
+            fxbus_set(&fx, i, val);
+        else if (v == 1 && i == FX_V1_DL_REV)
+            fxbus_set_dl_rev(&fx, val);
+        break;
     case T_MIX:
         if (v < 0 || v >= NPARTS)
             break;
@@ -306,9 +322,9 @@ void engine_apply_sound(const sound_t *s)
     engine_set(T_MST, 0, MST_COMP1, s->v[T_MST][0][MST_COMP1]);   /* the macros first: the pots they set */
     engine_set(T_MST, 0, MST_DJF, s->v[T_MST][0][MST_DJF]);       /* follow as saved (a project's own sound) */
     for (t = 0; t < NTARGETS; t++)
-        for (v = 0; v < engine_nvoices(t) && v < NVOICES_MAX; v++)
-            for (i = 0; i < engine_nparams(t, v) && i < NPARAMS_MAX; i++)
-                if (t != T_MST || i < MST_COMP1)
+        for (v = 0; v < NVOICES_MAX; v++)
+            for (i = 0; i < NPARAMS_MAX; i++)
+                if (engine_is_param(t, v, i) && (t != T_MST || i < MST_COMP1))
                     engine_set(t, v, i, s->v[t][v][i]);
 }
 

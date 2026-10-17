@@ -1,5 +1,6 @@
-# PERF: the performance screen, and PERF TEST (three patterns of its own on the factory sound), which
-# must put back everything it changed: the patterns, the sound, the tempo, the mutes, the song mode.
+# PERF: the performance screen, and PERF TEST (three patterns of its own on the factory sound, the
+# worst case with DLY TO REV up), which must put back everything it changed: the patterns, the sound
+# (DLY TO REV too), the tempo, the mutes, the song mode.
 wait 300
 tapkey b0
 tapkey w0
@@ -11,6 +12,9 @@ expect tempo 120
 tap HOME
 tapkey b2
 expect mute 4194304
+param 4 1 3 40
+wait 50
+expect dlrev 315
 # GLO > PERFORMANCE (the eleventh row)
 tap GLO
 turn SELECT 16
@@ -29,7 +33,10 @@ expect perftest 0
 expect patptr 0
 wait 7000
 shot p02_running.png
-wait 9000
+wait 2000
+expect perftest 2
+expect dlrev 1000
+wait 7000
 expect perftest 3
 expect perfres0 >0
 expect perfres1 >0
@@ -42,6 +49,7 @@ expect tempo 120
 expect mute 4194304
 expect hit0.0.8 1
 expect sound2.0.0 48
+expect dlrev 315
 # run it again and stop it halfway with HOME: everything back as well
 expect view 7
 tap SEL
@@ -58,3 +66,4 @@ expect patptr 1
 expect playing 0
 expect tempo 120
 expect mute 4194304
+expect dlrev 315

@@ -2,7 +2,7 @@
 /* X0X send FX and master, shared by the drum and bass parts. A port of 9W9's
  * (GPL-3.0) send reverb, tempo-synced delay and master stage:
  *
- *   out = volume * glue( dist( dry + reverb(rev) + delay(dly) ) )
+ *   out = volume * glue( dist( dry + reverb(rev + echoes) + delay(dly) ) )
  *
  *  - Reverb: four combs + two allpasses, the comb loop quantised to 12 bits
  *    (the early-rack grain), damping in the loop, HPF on the send.
@@ -55,6 +55,7 @@ struct fxbus {
     float dcur, lp, tape_hp;
     uint32_t wow_ph, flut_ph;
     int32_t dl_ping;                  /* X0X: ping-pong, a second tap at twice the time */
+    float dl_rv;                      /* X0X: the echoes' send into the reverb (fxbus_set_dl_rev) */
     /* master */
     float drive, volume, comp;
     int32_t dist_mode;
@@ -69,10 +70,15 @@ void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len);
 void fxbus_set_bpm(fxbus_t *f, float bpm);
 void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *dly, float *out, int n);
 /* X0X stereo: dry in L / R, the sends mono; with everything centred and no reverb, out_l and out_r
- * are fxbus_process's out exactly */
-void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const float *rev, const float *dly,
+ * are fxbus_process's out exactly. The delay's echoes are added into rev, the reverb's send, as far as
+ * fxbus_set_dl_rev says */
+void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, float *rev, const float *dly,
                       float *out_l, float *out_r, int n);
 int fxbus_nparams(void);
 const x0x_param_t *fxbus_param(int i);
 void fxbus_set(fxbus_t *f, int i, int value);
 int fxbus_get(const fxbus_t *f, int i);
+/* X0X: how much of the delay's echoes, at their return level, goes into the reverb: 0 (none,
+ * fxbus_init's) to 127 (as much as a part's send at full). It has no slot among the parameters above,
+ * which are full */
+void fxbus_set_dl_rev(fxbus_t *f, int amount);

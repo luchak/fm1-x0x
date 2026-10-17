@@ -127,6 +127,12 @@ void fxbus_set(fxbus_t *f, int i, int value)
     fx_apply(f, i, v);
 }
 
+/* Set how much of the delay's echoes goes into the reverb, as a part's send does (val / 127). */
+void fxbus_set_dl_rev(fxbus_t *f, int amount)
+{
+    f->dl_rv = (float)(amount < 0 ? 0 : amount > 127 ? 127 : amount) / 127.0f;
+}
+
 void fxbus_set_bpm(fxbus_t *f, float bpm)
 {
     if (bpm > 20.0f && bpm != f->bpm) {
@@ -274,8 +280,10 @@ static inline float dl_tap(const int16_t *buf, int32_t len, float flen, int32_t 
 
 /* out_r 0: 9W9's mono delay. Else both sides get the echo, or with PING the left reads at the time and
  * the right at twice it, the loop fed from the right: echoes alternate L R L R, one time apart. The
- * line holds both, so PING needs twice the time to fit (a 2 s line: 1 s); past that it plays centred. */
-static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int n)
+ * line holds both, so PING needs twice the time to fit (a 2 s line: 1 s); past that it plays centred.
+ * rv (0: none): the reverb's send, into which each echo goes at its return level times dl_rv, as a
+ * part's send does whatever its pan (with PING, the two taps are different echoes). */
+static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, float *rv, int n)
 {
     const float target = f->dl_time_ms * 0.001f * D9_SR;
     const int32_t len = f->dlen;
@@ -309,7 +317,7 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
     int16_t *buf = f->dbuf;
     const float flen = (float)len;
     const int ping = out_r && f->dl_ping && 2.0f * fm_maxf(f->dcur, target) + 4.0f < flen;
-    const float lvl = f->dl_level;
+    const float lvl = f->dl_level, rvl = lvl * f->dl_rv;
     int32_t quiet = f->dl_quiet;
     int32_t w = f->w;
     float dcur = f->dcur, lp = f->lp;
@@ -339,6 +347,8 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
             out[i] += y * lvl;
             if (out_r)
                 out_r[i] += y2 * lvl;
+            if (rv)
+                rv[i] += (ping ? y + y2 : y) * rvl;
             quiet = (k == 0 && in[i] == 0.0f) ? quiet + 1 : 0;
         }
     } else {
@@ -381,6 +391,8 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
             out[i] += y * lvl;
             if (out_r)
                 out_r[i] += y2 * lvl;
+            if (rv)
+                rv[i] += (ping ? y + y2 : y) * rvl;
             quiet = (k == 0 && in[i] == 0.0f) ? quiet + 1 : 0;
         }
         f->wow_ph = wp;
@@ -403,7 +415,7 @@ void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *
     for (int i = 0; i < n; ++i)
         out[i] = dry[i];
     fx_reverb(f, rev, out, 0, n);
-    fx_delay(f, dly, out, 0, n);
+    fx_delay(f, dly, out, 0, 0, n);
 
     if (f->dist_mode >= 1) {
         const float k = f->drive;
@@ -440,7 +452,7 @@ void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *
 
 /* X0X stereo: 9W9's chain on L and R. The distortion runs on each side; the glue compressor reads
  * the louder side and moves both together, so the image holds */
-void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const float *rev, const float *dly,
+void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, float *rev, const float *dly,
                       float *out_l, float *out_r, int n)
 {
     if (n > 256)
@@ -449,8 +461,8 @@ void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const 
         out_l[i] = dry_l[i];
         out_r[i] = dry_r[i];
     }
+    fx_delay(f, dly, out_l, out_r, f->dl_rv > 0.0f ? rev : 0, n);   /* first: its echoes go into rev */
     fx_reverb(f, rev, out_l, out_r, n);
-    fx_delay(f, dly, out_l, out_r, n);
     if (f->dist_mode >= 1) {
         const float k = f->drive;
         for (int i = 0; i < n; ++i) {

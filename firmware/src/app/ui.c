@@ -184,7 +184,8 @@ static void warn(const char *a, const char *b) { say_as(a, b, ANN_NOW | ANN_KEEP
 /* =============================================================== param refs === */
 enum { R_NONE, R_ENG, R_SWING, R_DLEN, R_DRATE, R_BLEN, R_BRATE, R_BDIR, R_BTRANS, R_GEN, R_BRKSET,
        R_BRKSLOT, R_TEMPO, R_ACCENT, R_CLKOUT, R_NOTEOUT, R_PALETTE, R_KEYLED, R_KEYSOUND, R_AUTOSAVE, R_ACT, R_SBAR, R_SPAT,
-       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL, R_FREEPLAY, R_CORES };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
+       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL, R_FREEPLAY, R_CORES,
+       R_DLREV };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
 typedef struct { uint8_t kind, a, b, c; } pref_t;
 #define PR(k, a, b, c) ((pref_t){(k), (a), (b), (c)})
 #define NONE PR(R_NONE, 0, 0, 0)
@@ -227,6 +228,7 @@ static const x0x_param_t USBA_P = {"USB AUDIO", 1, 0, USBA_N};
 static const char *const CORES_N[] = {"ON", "OFF"};
 static const x0x_param_t CORES_P = {"2ND CORE", 1, 0, CORES_N};   /* proj.set.one_core: at the next power-on */
 static const x0x_param_t FREEPLAY_P = {"FREE PLAY", 1, 0, ONOFF_N};
+static const x0x_param_t DLREV_P = {"DLY TO REV", 127, 0, 0};   /* proj.sound.v[T_FX][1][FX_V1_DL_REV] */
 static const x0x_param_t SREP_P = {"REPEAT", 7, 0, 0};    /* the bar plays 1-8 times */
 static const char *const BATT_N[] = {"EMPTY", "1/3", "2/3", "FULL", "USB POWER", "..."};
 static const x0x_param_t BATT_P = {"BATTERY", 5, 0, BATT_N};   /* read only (plat_battery) */
@@ -293,6 +295,7 @@ static const x0x_param_t *pref_desc(pref_t r)
     case R_USBFULL: return &USBA_P;
     case R_CORES: return &CORES_P;
     case R_FREEPLAY: return &FREEPLAY_P;
+    case R_DLREV: return &DLREV_P;
     case R_SREP: return &SREP_P;
     case R_BATT: return &BATT_P;
     case R_SLEN: return &SONG_P[5];
@@ -351,6 +354,10 @@ static int pref_get(pref_t r)
     case R_USBFULL: return proj.set.usb_full;
     case R_CORES: return proj.set.one_core;
     case R_FREEPLAY: return ui.freeplay[r.a];
+    case R_DLREV: {                                   /* (as the engine reads it: past 127 is 127) */
+        int a = proj.sound.v[T_FX][1][FX_V1_DL_REV];
+        return a > 127 ? 127 : a;
+    }
     case R_SREP: return ui.song_sel < song()->len ? song()->bar[ui.song_sel].mute >> 5 : 0;
     case R_BATT: return plat_battery() < 0 ? 5 : plat_battery();
     case R_SLEN: return song()->len;
@@ -454,6 +461,10 @@ static void pref_set(pref_t r, int v)
         engine_set(T_FX, 0, FX_DL_WEAR, we);
         break;
     }
+    case R_DLREV:
+        proj.sound.v[T_FX][1][FX_V1_DL_REV] = (uint8_t)v;
+        engine_set(T_FX, 1, FX_V1_DL_REV, v);
+        break;
     case R_STALLS:
         perf.stalls_on = (uint8_t)v;
         plat_stalls_enable(v);
@@ -661,6 +672,7 @@ static void pref_value_of(pref_t r, int v, char *num, char *unit)
         }
         return;
     case R_BRKSET: put_i(num, v); put_s(unit, "%"); return;
+    case R_DLREV: put_i(num, v * 100 / 127); put_s(unit, "%"); return;
     case R_TEMPO: put_i(num, v + 20); put_s(unit, "bpm"); return;
     case R_SBAR: put_i(num, v + 1); return;
     case R_SPAT: num[0] = 'P'; put_i(num + 1, v + 1); return;
@@ -847,6 +859,7 @@ static void build_pages(void)
         more(PR(R_ENG, T_FX, 0, FX_RV_LEVEL));
         more(PR(R_ENG, T_FX, 0, FX_DL_HPF));
         more(PR(R_ENG, T_FX, 0, FX_DL_LEVEL));
+        more(PR(R_DLREV, 0, 0, 0));
         more(PR(R_ENG, T_FX, 0, FX_DL_PING));
         break;
     case V_MIX:                                        /* a channel picked with a black key, its four knobs */
@@ -1257,7 +1270,7 @@ static void undo_changed(uint32_t off, uint32_t len)
         if (k >= s0 && k < s1) {
             uint32_t x = k - s0, t = x / (NVOICES_MAX * NPARAMS_MAX), v = (x / NPARAMS_MAX) % NVOICES_MAX,
                      i = x % NPARAMS_MAX;
-            if ((int)v < engine_nvoices((int)t) && (int)i < engine_nparams((int)t, (int)v))
+            if (engine_is_param((int)t, (int)v, (int)i))
                 engine_set((int)t, (int)v, (int)i, proj.sound.v[t][v][i]);
         } else if (k >= l0) {
             undo_lanes = 1;
@@ -1343,8 +1356,9 @@ static void save_project(void)
  * against the 24 MHz timer), the audio load and its peak, dropouts, stall cycles (when switched on),
  * and each stage's share of the CPU (the engine times them: engine.h ENG_PROF_N). PERF TEST plays
  * three patterns of its own (the factory loop, all five parts, a dense worst case) on the factory
- * sound, 1 s to settle and 3 s measured each, and keeps the table; then it puts back the project's
- * patterns, sound, tempo, mutes, chain and song mode. The project itself is never written. */
+ * sound, the worst case with all the echoes into the reverb too (DLY TO REV), 1 s to settle and 3 s
+ * measured each, and keeps the table; then it puts back the project's patterns, sound, tempo, mutes,
+ * chain and song mode. The project itself is never written. */
 static const char *const PT_N[3] = {"FACTORY LOOP", "ALL FIVE", "WORST CASE"};
 static pattern_t perf_bench[3];
 static sound_t perf_snd;
@@ -1532,6 +1546,8 @@ static void perf_test_tick(void)
             perf.res_peak[perf.test] = perf.peak;
             perf.res_cps[perf.test] = perf.cps;
             if (++perf.test < 3) {
+                if (perf.test == 2)                   /* the worst case: DLY TO REV up (before the settling) */
+                    engine_set(T_FX, 1, FX_V1_DL_REV, 127);
                 seq_cue(&seq, perf.test);
                 perf.phase = 1;
                 perf.test_t0 = now;

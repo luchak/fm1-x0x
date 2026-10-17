@@ -4,7 +4,8 @@
  *  - master_process_st with l == r is master_process, bit for bit, compressor, PUMP, filter, limiter;
  *  - fxbus_process_st with dry l == r and no reverb is fxbus_process on both sides, bit for bit;
  *  - with reverb, the left is 9W9's mono reverb exactly and the right is a different (decorrelated) one;
- *  - PING: an impulse into the delay comes back on the left one time later, on the right two. */
+ *  - PING: an impulse into the delay comes back on the left one time later, on the right two.
+ *  - DLY TO REV: the delay's echo goes into the reverb, whose tail follows it; at 0 none does. */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +28,32 @@ static float rnd(void) { rs = rs * 1664525u + 1013904223u; return (float)(int)(r
 static master_t m1, m2;
 static fxbus_t f1, f2;
 static int16_t dl1[88200], dl2[88200];
+
+/* Return the energy of everything after an impulse's single echo (from 50 ms past it), with this much
+ * of the echoes sent into the reverb. */
+static double echo_tail_energy(int amount)
+{
+    static float dry[N], rev[N], dly[N], l[N], r[N];
+    double e = 0.0;
+    int b, i, t_echo;
+    fxbus_init(&f2, dl2, 88200);
+    fxbus_set(&f2, FX_DL_TIME, 7);
+    fxbus_set(&f2, FX_DL_FDBK, 0);
+    fxbus_set_dl_rev(&f2, amount);
+    fxbus_set_bpm(&f2, 120.0f);
+    t_echo = 2 * N + (int)(f2.dl_time_ms * 0.001f * 44100.0f);
+    for (b = 0; b < BLOCKS; b++) {
+        for (i = 0; i < N; i++) {
+            dry[i] = rev[i] = 0.0f;
+            dly[i] = (b == 2 && i == 0) ? 1.0f : 0.0f;
+        }
+        fxbus_process_st(&f2, dry, dry, rev, dly, l, r, N);
+        for (i = 0; i < N; i++)
+            if (b * N + i > t_echo + 2205)
+                e += (double)l[i] * l[i] + (double)r[i] * r[i];
+    }
+    return e;
+}
 
 int main(void)
 {
@@ -125,6 +152,11 @@ int main(void)
         printf("       first echo: left at %d, right at %d samples (time %.0f)\n", first_l, first_r,
                (double)(f2.dl_time_ms * 0.001f * 44100.0f));
         check(first_l > 0 && first_r > first_l && abs(first_r - 2 * first_l) < 8, "ping: left at T, right at 2T");
+    }
+    {   /* DLY TO REV: the echo's reverb follows it; at 0, nothing does */
+        double e_none = echo_tail_energy(0), e_full = echo_tail_energy(127);
+        printf("       after the echo: energy %.3g with DLY TO REV at 0, %.3g at 127\n", e_none, e_full);
+        check(e_none == 0.0 && e_full > 1e-4, "dly to rev: the echo goes into the reverb, at 0 it doesn't");
     }
     printf(fails ? "stereo: %d FAILED\n" : "stereo: ok\n", fails);
     return fails != 0;
