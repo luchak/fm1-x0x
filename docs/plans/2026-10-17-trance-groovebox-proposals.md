@@ -119,7 +119,7 @@ than a value per bar (section 4.8).
 | CPU | 2 x 360 MHz (measured), single-precision FPU, no SIMD, divide in one instruction, no sqrt; about 8,160 cycles per sample per core at 44.1 kHz | X0X's numbers calibrate the host profiler: 1 host-ns per sample is about 0.27 % of a core. One Open303 with 2x oversampling and drive is about 19 % of a core; ROOM is about 7.5 % |
 | Code | XIP from SPI flash through a **32 KB I-cache shared by both cores** | Many different machines at once evict each other. Render voices **batched by machine type**, keep hot loops in RAM (`.ram_text`) |
 | Core 1 | Works on X0X at M-VAVE's supply levels, but misreads RAM on some units at the boot loader's (other firmwares now self-test and fall back) | Design for two cores, survive on one |
-| RAM | X0X lays out 96 KB .data/.bss + 336 KB pool; the chip has about 514 KB usable after caches | Delay lines dominate. Long stereo delays need 8-bit storage (mu-law, or ROOM's block-float) |
+| RAM | X0X lays out 96 KB .data/.bss + 336 KB pool; the chip has about 514 KB usable after caches | Delay lines dominate. Reverb lines can be 8-bit block-float (as ROOM's are); the delay wants more bits at half rate (section 4.3) |
 | Flash | 1 MB total. App slot 581 KB (X0X's image is 558 KB, of which roughly 120 KB is the 909's mu-law cymbals and hats); about 36 KB of project storage; three 80 KB sample slots | Content (presets, phrase libraries) must be tiny. One sample slot probably becomes project storage |
 | Screen | 240 x 240 RGB565 over SPI | SPI time is the bottleneck; draw in bands, blit what changed |
 | Keys | 27 (F3-G5): 16 white, 11 black, an LED each, two brightness levels. Velocity is readable only experimentally (about 20 of 27 keys sense well) | 16 steps + 11 tracks is a natural fit. Treat velocity as a later bonus; accents come from a modifier |
@@ -365,9 +365,27 @@ The FX track's pages:
   - PING-PONG / STEREO / MONO with width (the `pingpong-width` branch);
   - feedback to about 90 %, HP and LP inside the loop;
   - TAPE wear and saturation (exists); delay-to-reverb (branch).
-  - Memory: a 1/4 note at 138 BPM is 435 ms, and 1/2 at 122 BPM is about 1 s. So budget 1-1.5 s
-    a side in **8-bit mu-law**, which can be read anywhere, so tape wobble's moving read still
-    works. That is 88-132 KB for stereo. Clouds' lo-fi mode is precedent.
+  - **Length:** a 1/4 note at 138 BPM is 435 ms; a dotted 1/4 at 122 BPM is 740 ms; a 1/2 at
+    122 BPM is about 1 s. **1 s a side** covers these genres' tempos.
+  - **Storage:** int16 at half rate (22.05 kHz) by default, 88 KB for stereo. 12-bit block-float
+    is the fallback if RAM is short: 12-bit mantissas plus one exponent per 16 samples, about
+    69 KB.
+  - **Why not 8 bits:** the noise floor of an 8-bit format follows whatever is loudest at that
+    moment.
+    - Block-float is about 47-53 dB below the block's peak; mu-law about 38 dB below each
+      sample, so it's worse still.
+    - A faint echo sharing the line with a loud new note gets that noise. When the two sound
+      very different (bright hat echoes under a dark pad, say), the noise isn't masked, and it
+      re-quantizes on every repeat.
+    - A reverb tail is diffuse; its network smears and damps the noise, and ROOM's listening
+      tests heard no difference between 8- and 16-bit mantissas. A delay's echoes are distinct
+      copies of a musical line, so the grit is audible.
+  - **Half rate** costs little, since the repeats are low-passed at 3-5 kHz in the feedback loop
+    anyway. A full-rate DIGI mode gets 0.5 s a side from the same buffer, for crisp short
+    echoes.
+  - Mu-law stays only as a deliberate LO-FI character, like Clouds' cassette mode.
+  - **Modulated reads** (tape wobble, through-zero) work on either format: any sample decodes
+    from its block's exponent. Only the writes go a block at a time.
 - **CHORUS:** a Juno-style BBD, modes I / II / I+II. A send, so all the pads share it, as on a
   90s desk.
   - **It is written from the published parameters,** not from TAL's code: TAL-NoiseMaker's chorus
@@ -663,8 +681,8 @@ M0 audits the real map and looks for the roughly 80 KB that X0X's layout doesn't
 
 | | Lean | Middle | Everything maxed |
 |---|---|---|---|
-| Delay, stereo, 8-bit mu-law: 1.5 s a side at half rate / 1.2 s / 1.5 s at full rate | 66 | 106 | 132 |
-| Reverb: one type at a time (HALL and PLATE share a buffer) / both at once | 36 | 36 | 69 |
+| Delay, stereo, half rate: 1 s a side in 12-bit block-float / 1 s in int16 / 1.5 s in int16 | 69 | 88 | 132 |
+| Reverb: one type at a time (HALL and PLATE share a buffer) / both at once (the plate's long delays in 8-bit block-float, its allpasses in int16) | 36 | 36 | 58 |
 | MOD FX lines: chorus send, master and BUS through-zero (stereo, 20 ms), per-track lines (a pool of 6, or all 11) | 19 | 19 | 28 |
 | Screen band buffer: 240 x 24 / 240 x 48 (X0X's canvas is 69 KB) | 12 | 23 | 23 |
 | Patterns: 16 x 12 tracks x 64 trigs x 3 B (micro-timing, conditions and retrigs in lanes, as X0X keeps chance), or 4 B | 37 | 37 | 49 |
@@ -675,20 +693,23 @@ M0 audits the real map and looks for the roughly 80 KB that X0X's layout doesn't
 | Voices (about 26), track buffers, FX state | 30 | 35 | 40 |
 | **Hot code in RAM** (missing from the first version of this table) | 16 | 32 | 48 |
 | USB, backup, the rest of .data/.bss (as X0X) | 25 | 28 | 35 |
-| **Total** | **about 300** | **about 380** | **about 490** |
+| **Total** | **about 300** | **about 360** | **about 480** |
 
 Against the 432 KB X0X lays out today:
-- **Lean and middle fit,** the middle with about 50 KB to spare.
+- **Lean and middle fit,** the middle with about 70 KB to spare.
 - **Everything maxed doesn't fit** unless the audit finds most of the remaining 80 KB.
 
 The new features themselves are small: mod FX, through-zero, the bus, sound locks and textures
 come to about 25-35 KB together. The big items are what they always were, and they are also the
 levers, in order of value:
 
-1. **The delay** (66-132 KB).
-   - Storing it at half rate is nearly free in sound, since the repeats are low-passed at 3-5 kHz
-     in the feedback loop anyway. It halves the memory, or doubles the time.
-   - Keep full rate for a clean DIGI mode with short times.
+1. **The delay** (69-132 KB).
+   - Half rate is nearly free in sound: the repeats are low-passed at 3-5 kHz in the feedback loop
+     anyway. It halves the memory, or doubles the time.
+   - 1 s a side is enough for 120-155 BPM.
+   - 12-bit block-float instead of int16 saves another 19 KB.
+   - Full rate stays for a clean DIGI mode with short times.
+   - Don't go to 8 bits on the delay (section 4.3).
 2. **Hot code in RAM** (16-48 KB). Move only what M0 shows the I-cache can't hold. If the cache
    copes, this is near zero.
 3. **One reverb at a time** (saves 33 KB against two). Era desks often had a plate and a hall, but
@@ -909,7 +930,13 @@ and feel, and only the device answers them.
   - 2-op FM;
   - the BBD chorus;
   - the hall reverb at 4-8 s, and the Dattorro plate at half rate;
-  - stereo ping-pong in mu-law;
+  - stereo ping-pong at half rate, int16 against 12-bit block-float, with a masking stress test
+    for each format:
+    - faint bright echoes under a loud dark pad;
+    - echoes alone in silence;
+    - dub stabs at 70-90 % feedback for 30 s.
+    It's scored by noise per band against a float reference, then listened to. The same test
+    runs on the reverb's 8-bit lines.
   - one 909 voice as a machine.
 - **I-cache test:** 6 machine types active, with and without RAM-resident loops, with the screen
   still vs animating.
@@ -1003,9 +1030,9 @@ and feel, and only the device answers them.
 
 1. **The I-cache.** Eleven tracks of five machine types may thrash a shared 32 KB cache. The
    mitigations are batching and RAM-resident loops; M0 measures it before anything depends on it.
-2. **Memory for long delays and halls.** Block-float storage has worked once (ROOM). For the
-   delay, mu-law keeps random access for tape wobble. Both cost a little noise on long tails, so
-   they need listening tests.
+2. **Memory for long delays and halls.** 8-bit block-float has worked once, for ROOM's reverb
+   lines. The delay needs 12-16 bits at half rate, because faint echoes under loud, different new
+   material expose an 8-bit noise floor. M0's masking stress test checks both.
 3. **Core 1 on some units.** Mitigated by the single-core budget, but a single-core FM-1 gets a
    smaller instrument. The manual should say so plainly.
 4. **UI depth on four knobs.** Twelve tracks x (SRC + FLT + AMP + MOD + FX + SOURCE + TRACK) is a
