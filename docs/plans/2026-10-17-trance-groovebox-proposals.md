@@ -282,7 +282,8 @@ DUCK**, with its output going to MAIN or to the group BUS (section 4.3).
 - Shape (soft / hard / RAT-ish, reusing X0X's 303 drive types) and amount.
 
 **MOD FX** (an insert, per track)
-- Types: OFF / CHORUS (Juno I, II, I+II) / FLANGER / PHASER (4, 6 or 8 stages).
+- Types: OFF / CHORUS (Juno I, II, I+II) / FLANGER (classic or through-zero) / PHASER (4, 6 or 8
+  stages).
 - **Controls:**
   - rate, synced in notes or bars, or free;
   - depth, mix, and stereo, with the LFO in antiphase between left and right;
@@ -298,6 +299,24 @@ DUCK**, with its output going to MAIN or to the group BUS (section 4.3).
 - **Memory:** the delay-based types take a 10 ms int16 line, about 1 KB a track.
 - **The shared CHORUS send stays.** Pads sent there are the 90s desk sound. The insert is for
   when one sound needs its own: a phased arp, flanged hats, a chorused bass.
+
+**Through-zero flanging** (TZF), the big tape-style jet of the era:
+- **How it works:** two copies of the signal, one delayed by a fixed amount D0 (1-10 ms) and one
+  swept from 0 to 2 x D0, so the delay difference passes through zero.
+  - With the polarity inverted, the copies cancel completely at the crossing: the dramatic
+    "whoosh into silence".
+  - With normal polarity, they double instead, a softer effect.
+- **Controls:** feedback on the swept path for the jet's ring; left and right swept in opposite
+  directions for width.
+- **The crossing is exposed,** so the swept read uses cubic (Hermite) interpolation rather than
+  linear, and the delay time is smoothed per sample.
+- **Cost:** about 30-50 cycles a channel and a 20 ms line (about 2 KB a channel). Cheap.
+- **How it's played:** usually as a gesture, not a steady LFO. A song-row ramp or a lane sweeps
+  MANUAL across the last bar or two of a build, or the FX track's LFO in ONE mode runs a
+  single sweep from a trigless lock.
+- **On a single track it delays that track by D0,** a few milliseconds behind the rest. That's
+  usually inaudible, but the master and the BUS are its natural homes, since there everything
+  moves together.
 
 **DUCK**
 - How much this track ducks when the duck source (any track, usually KICK) triggers.
@@ -365,6 +384,8 @@ The FX track's pages:
   - The tracks' own sends leave before the bus, so the bus filter doesn't cut their reverb.
 - **MASTER:**
   - DJ filter, compressor (with gentle 2:1 "glue" presets), drive, limiter: all of X0X's;
+  - a MOD FX slot after the effect returns, for whole-mix sweeps (usually the through-zero
+    flanger, the way a DJ flanges the whole record into a drop);
   - a simple tilt EQ.
   - 90s masters were not loud; the factory presets shouldn't be either.
 
