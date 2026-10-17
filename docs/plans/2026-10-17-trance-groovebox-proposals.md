@@ -20,7 +20,8 @@ Reference tracks: Cass & Slide "Perception", Taucher "Waters", Bedrock "Set in S
   - Each sound track runs a *machine* (909 drum voices, an ACID 303, a JP-style SAW, a VA, a 2-op
     FM, a SAMPLE/slice player).
   - Behind the machine every track has the same chain and the same pages: filter, amp, drive,
-    sends, ducking, two LFOs and a step modulator.
+    a chorus/flanger/phaser insert, sends, ducking, two LFOs and a step modulator (which is
+    also the trance gate).
 - **One sequencer for every track:**
   - per-track length and speed
   - p-locks, conditions, retrigs, micro-timing, slides
@@ -75,7 +76,7 @@ From the genre research (sources at the end; values are starting points, not gos
 | 909 drums, tuned and driven; crash on the 1; snare rolls | Everything | 909 voices (9W9, exists); **retrigs with rate/velocity ramps**; phrase-aware conditions |
 | Noise risers, 8-16-bar filter openings, 32-64-bar rides | All the references; prog house's slow builds | NOISE (VA osc mode) + **song automation lanes** |
 | Big halls (2.5-6 s, pre-delay 20-60 ms), plates on claps | Lexicon/Quadraverb era | **hall FDN** (X0X's ROOM, extended) |
-| Phaser/flanger on pads, hats, goa sweeps | The era's shared phasers, goa | **phaser** per track (cheap) or as an FX-track insert |
+| Phaser/flanger on pads, hats, goa sweeps | The era's shared phasers, goa | **MOD FX** insert on every track (chorus / flanger / phaser) and on the group **BUS** |
 | Chopped, filtered breaks with a 909 kick under them | Prog breaks, Bliss Inc | **SAMPLE/slice** machine + **BREAK** source (BB Gen) |
 | Ducking | 2020s revival (lightly in 90s trance) | per-track **DUCK** amount from a chosen source track |
 | 3-step cells over 4/4, polymeter | Goa, prog, KiloMix patterns 8-15 | per-track length/speed, "free-run" vs "reset per bar/phrase" |
@@ -258,7 +259,8 @@ NuSaw (MIT, Schwung) are references.
 
 ### 4.2 The common chain and modulation
 
-Every sound track: **SRC → FILTER → AMP → DRIVE → pan/level → sends (REV, DLY, CHO) and DUCK**.
+Every sound track: **SRC → FILTER → AMP → DRIVE → MOD FX → pan/level → sends (REV, DLY, CHO) and
+DUCK**, with its output going to MAIN or to the group BUS (section 4.3).
 
 **FILTER**
 - Types: LP24 (ZDF ladder with mild saturation), LP12 / BP / HP (ZDF SVF), OFF.
@@ -279,6 +281,24 @@ Every sound track: **SRC → FILTER → AMP → DRIVE → pan/level → sends (R
 **DRIVE**
 - Shape (soft / hard / RAT-ish, reusing X0X's 303 drive types) and amount.
 
+**MOD FX** (an insert, per track)
+- Types: OFF / CHORUS (Juno I, II, I+II) / FLANGER / PHASER (4, 6 or 8 stages).
+- **Controls:**
+  - rate, synced in notes or bars, or free;
+  - depth, mix, and stereo, with the LFO in antiphase between left and right;
+  - feedback: the flanger's and phaser's colour;
+  - MANUAL, the delay or notch position. P-locks and song lanes can sweep it, for a jet flange
+    into the drop.
+- The LFO resets with the pattern or the phrase, so a slow sweep (one cycle per 4 or 8 bars)
+  lands the same way every time.
+- All of these are ordinary track parameters, so LFOs, STEP, p-locks and song lanes reach
+  them.
+- **Cost:** chorus about 40-80 cycles; flanger 20-30 a channel; phaser about 5 per allpass
+  stage. It counts in the budget.
+- **Memory:** the delay-based types take a 10 ms int16 line, about 1 KB a track.
+- **The shared CHORUS send stays.** Pads sent there are the 90s desk sound. The insert is for
+  when one sound needs its own: a phased arp, flanged hats, a chorused bass.
+
 **DUCK**
 - How much this track ducks when the duck source (any track, usually KICK) triggers.
 - One shared envelope per source, one multiply per track.
@@ -291,8 +311,14 @@ Every sound track: **SRC → FILTER → AMP → DRIVE → pan/level → sends (R
 - **STEP** (the PCF idea), a 16- or 32-step pattern:
   - Each step has a level and a shape (hold, decay, attack, ramp). It is tempo-synced and resets
     with the pattern.
-  - It routes to AMP (a trance gate with 2-10 ms edges), CUTOFF (PCF) or any parameter, with depth
-    and a per-step decay.
+  - **Two destinations, each with its own depth:** AMP is the trance gate, CUTOFF is the PCF, and
+    both together make a gated, filtered pad. Any parameter works; PAN makes a left/right gate.
+  - **Rate:** 1/32 to 1/4, triplets included. It follows the track's swing.
+  - **Shape:** DUTY (each step open for 25-100 % of its length), SMOOTH (edges of 0-20 ms, so it
+    doesn't click), a per-step decay.
+  - **It sits before the sends,** so the reverb and delay tails run on smoothly under the gate,
+    which is the usual trance-gate sound. To chop the wash as well, the FX track's STEP gates a
+    reverb return or the BUS.
   - It comes with a library of about 48 patterns. We author our own: ReBirth's 56 PCF diagrams are
     a reference, not something to copy.
   - **On the STEP page, the white keys edit the pattern**, a direct use of the 16 keys.
@@ -328,7 +354,15 @@ The FX track's pages:
     one-pole lowpass.
   - About 40-70 cycles and 2-3 KB.
   - Plaits' ensemble (MIT) is a second, string-machine type.
-- **PHASER:** 4/6 stages on the FX track, plus a cheap per-track insert where the budget allows.
+- **BUS:** one group bus.
+  - Any track's output can go to BUS instead of MAIN. The FX track gives the bus a DJ filter, a
+    MOD FX and a level its STEP can gate.
+  - That covers the classic group moves with no per-track work:
+    - high-pass the drums through a breakdown;
+    - jet-flange the drums into the drop;
+    - phase the whole kit;
+    - gate the pad and the arp together.
+  - The tracks' own sends leave before the bus, so the bus filter doesn't cut their reverb.
 - **MASTER:**
   - DJ filter, compressor (with gentle 2:1 "glue" presets), drive, limiter: all of X0X's;
   - a simple tilt EQ.
@@ -378,10 +412,11 @@ M0 replaces these numbers.
 | LEAD, SAW x 2 | 6-8 |
 | BASS, VA x 1-2 | 3-4 |
 | ARP, VA x 4 | 8-10 |
-| Reverb (hall) + delay + chorus + phaser | 12-15 |
+| Reverb (hall) + delay + chorus send | 11-13 |
+| MOD FX on 3-4 tracks, plus the BUS | 3-5 |
 | Master | 7 (X0X's figure: 25 host-ns) |
 | Sequencer, modulation, mixing | 5-6 |
-| **Total** | **about 90-100 % of one core, so about 45-50 % of two** |
+| **Total** | **about 95-105 % of one core, so roughly half of two** |
 
 That leaves room for a second ACID (goa, KiloMix), 8 pad voices, or 2x oversampling on the SAW
 filters. On one core it doesn't fit, and the fallback has to bite.
@@ -605,7 +640,7 @@ layout doesn't use)
 |---|---|
 | Delay, stereo, 1-1.5 s a side (8-bit mu-law) | 88-132 |
 | Reverb: hall (block-float lines) and plate (half rate), shared or separate | 18-50 |
-| Chorus + phaser | 6 |
+| Chorus send, MOD FX lines (about 1 KB a track), bus | 6-18 |
 | Screen band buffer, 240 x 48 (X0X's canvas is 69 KB) | 23 |
 | 16 patterns x 12 tracks x 64 trigs x 4 B, plus headers | 52 |
 | Lock lanes, 256 x 72 B | 18 |
@@ -613,7 +648,7 @@ layout doesn't use)
 | Undo journal (old values per edit; X0X's whole-project shadow doesn't scale) | 16 |
 | Voices, track buffers, FX state | 30 |
 | USB, backup, misc (as X0X) | 25 |
-| **Total** | **about 310-370 of 432 laid out today** |
+| **Total** | **about 315-380 of 432 laid out today** |
 
 **Flash**
 - **App image:** at most 581 KB. Drop the 808 and the built-in break loops; keep the 909's roughly 120
@@ -849,7 +884,7 @@ and feel, and only the device answers them.
   control rate, LFOs, STEP, MOD ENV, the common filter (with COMB), DUCK, noise colours,
   CRUSH and DECIMATE.
 - **Machines:** BD/CP/HAT/CYM (from 9W9), ACID, SAW, VA.
-- **FX:** hall, ping-pong, chorus; X0X's master.
+- **FX:** hall, ping-pong, chorus send, MOD FX inserts, the BUS; X0X's master.
 - A throwaway minimal UI is enough here.
 - **Validation:**
   - 909 and 303 reference tests still pass after the split;
