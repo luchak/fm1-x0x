@@ -42,15 +42,22 @@
  * are fetched before that block is committed (fx_room). */
 #define FX_RM_N 8
 #define FX_RM_BLK 16
-/* The lines' lengths in samples, shortest first. All must be equal modulo 16 (fx_rm_fetch_all). */
-#define FX_RM_L0 1123
-#define FX_RM_L1 1283
-#define FX_RM_L2 1459
-#define FX_RM_L3 1571
-#define FX_RM_L4 1747
-#define FX_RM_L5 1907
-#define FX_RM_L6 2083
-#define FX_RM_L7 2243
+/* The lines' rings' lengths in samples, shortest first. Lines 0 .. 3 must be equal modulo 16, and lines
+ * 4 .. 7 (fx_rm_fetch_all: two reads' places in a block). Lines 0, 2, 4 and 6 have one sample more
+ * delay than their ring, in their damper (fx_rm_damp4): FX_RM_DLY. The delays are then of four
+ * residues modulo 16 (1, 2, 5 and 6), and the network's echoes spread over every place in a block as
+ * the tail goes on. With one residue r, an echo after k trips is at r k mod 16 whatever its path,
+ * and the early tail's spectrum repeats every 44100 / 16 Hz; with four, that pattern shrinks by
+ * about 0.7 per trip (the design doc). */
+#define FX_RM_L0 1137
+#define FX_RM_L1 1297
+#define FX_RM_L2 1457
+#define FX_RM_L3 1553
+#define FX_RM_L4 1749
+#define FX_RM_L5 1877
+#define FX_RM_L6 2101
+#define FX_RM_L7 2213
+#define FX_RM_DLY(j) (((j) & 1) == 0)        /* line j's damper delays one sample */
 #define FX_RM_NB(l) ((l) / FX_RM_BLK + 1)
 #define FX_RM_BLOCKS (FX_RM_NB(FX_RM_L0) + FX_RM_NB(FX_RM_L1) + FX_RM_NB(FX_RM_L2) + FX_RM_NB(FX_RM_L3) + \
                       FX_RM_NB(FX_RM_L4) + FX_RM_NB(FX_RM_L5) + FX_RM_NB(FX_RM_L6) + FX_RM_NB(FX_RM_L7))

@@ -59,9 +59,10 @@ TERMS = {
 
 
 def lengths():
-    """the lines' lengths, from fxbus.h"""
+    """the lines' delays, from fxbus.h: each ring's length, and one sample more for lines 0, 2, 4 and 6
+    (FX_RM_DLY, the delay in their dampers)"""
     h = (ROOT / "firmware/src/dsp/fxbus.h").read_text()
-    return np.array([int(re.search(rf"#define FX_RM_L{j}\s+(\d+)", h).group(1)) for j in range(8)])
+    return np.array([int(re.search(rf"#define FX_RM_L{j}\s+(\d+)", h).group(1)) + (j % 2 == 0) for j in range(8)])
 
 
 def build():

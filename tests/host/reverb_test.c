@@ -34,12 +34,14 @@ static fx_rv_buf_t rv1, rv2;
 static const float zero[N];
 
 /* ---- the reference: fxbus.c's ROOM with float lines and diffusers ---- */
-static const int RL[8] = {FX_RM_L0, FX_RM_L1, FX_RM_L2, FX_RM_L3, FX_RM_L4, FX_RM_L5, FX_RM_L6, FX_RM_L7};
+/* each line's delay: its ring, and one sample more where its damper delays (FX_RM_DLY) */
+static const int RL[8] = {FX_RM_L0 + FX_RM_DLY(0), FX_RM_L1 + FX_RM_DLY(1), FX_RM_L2 + FX_RM_DLY(2), FX_RM_L3 + FX_RM_DLY(3),
+                          FX_RM_L4 + FX_RM_DLY(4), FX_RM_L5 + FX_RM_DLY(5), FX_RM_L6 + FX_RM_DLY(6), FX_RM_L7 + FX_RM_DLY(7)};
 static const float RIN[8] = {1, 1, -1, -1, 1, -1, -1, 1};
 static const int DL[4] = {FX_RM_D0, FX_RM_D1, FX_RM_D2, FX_RM_D3};
 static const float DG[4] = {FX_RM_G0, FX_RM_G1, FX_RM_G2, FX_RM_G3};
 typedef struct {
-    float line[8][FX_RM_L7], dif[4][FX_RM_DIF_TOTAL], lp[8], tl, tr;
+    float line[8][FX_RM_L7 + 1], dif[4][FX_RM_DIF_TOTAL], lp[8], tl, tr;
     int pos[8], dpos[4];
     d9_biquad_t hp;
 } ref_t;
