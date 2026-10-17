@@ -283,7 +283,7 @@ DUCK**, with its output going to MAIN or to the group BUS (section 4.3).
 
 **MOD FX** (an insert, per track)
 - Types: OFF / CHORUS (Juno I, II, I+II) / FLANGER (classic or through-zero) / PHASER (4, 6 or 8
-  stages).
+  stages) / COMB (section 4.11).
 - **Controls:**
   - rate, synced in notes or bars, or free;
   - depth, mix, and stereo, with the LFO in antiphase between left and right;
@@ -296,7 +296,8 @@ DUCK**, with its output going to MAIN or to the group BUS (section 4.3).
   them.
 - **Cost:** chorus about 40-80 cycles; flanger 20-30 a channel; phaser about 5 per allpass
   stage. It counts in the budget.
-- **Memory:** the delay-based types take a 10 ms int16 line, about 1 KB a track.
+- **Memory:** the delay-based types take a 10-20 ms int16 line (20 ms for through-zero), 1-2 KB a
+  track, from a pool of about six lines (section 4.10).
 - **The shared CHORUS send stays.** Pads sent there are the 90s desk sound. The insert is for
   when one sound needs its own: a phased arp, flanged hats, a chorused bass.
 
@@ -340,6 +341,8 @@ DUCK**, with its output going to MAIN or to the group BUS (section 4.3).
     reverb return or the BUS.
   - It comes with a library of about 48 patterns. We author our own: ReBirth's 56 PCF diagrams are
     a reference, not something to copy.
+  - **A track refers to its pattern by number,** from the library or one of 32 user slots, so it
+    costs one p-lockable byte.
   - **On the STEP page, the white keys edit the pattern**, a direct use of the 16 keys.
 
 Elektron's choice holds here: no general mod matrix. LFOs with a destination, the STEP modulator,
@@ -404,7 +407,8 @@ The FX track's pages:
 **Batched, RAM-resident rendering**
 - Voices of the same machine render in one loop: one copy of the code in the I-cache, however many
   tracks use it.
-- The hot loops live in RAM.
+- The hot loops live in RAM, but only those M0 shows the I-cache can't hold. RAM code competes
+  with delay memory (section 4.10).
 - Envelopes, LFOs, STEP and lock ramps run at a 32-sample control rate. Cutoff and amplitude are
   smoothed per sample.
 - Notes start at their exact sample: the voice begins mid-block.
@@ -654,22 +658,48 @@ The FM-1's printed labels already read like Elektron's page buttons:
 
 ### 4.10 Memory and flash
 
-**RAM** (planning numbers; M0 audits the real map and looks for the roughly 80 KB that X0X's
-layout doesn't use)
+**RAM** (planning numbers, revised after adding the mod FX, the bus, sound locks and textures;
+M0 audits the real map and looks for the roughly 80 KB that X0X's layout doesn't use)
 
-| | KB |
-|---|---|
-| Delay, stereo, 1-1.5 s a side (8-bit mu-law) | 88-132 |
-| Reverb: hall (block-float lines) and plate (half rate), shared or separate | 18-50 |
-| Chorus send, MOD FX lines (about 1 KB a track), bus | 6-18 |
-| Screen band buffer, 240 x 48 (X0X's canvas is 69 KB) | 23 |
-| 16 patterns x 12 tracks x 64 trigs x 4 B, plus headers | 52 |
-| Lock lanes, 256 x 72 B | 18 |
-| Song rows + lanes (16 KB cap) | 19 |
-| Undo journal (old values per edit; X0X's whole-project shadow doesn't scale) | 16 |
-| Voices, track buffers, FX state | 30 |
-| USB, backup, misc (as X0X) | 25 |
-| **Total** | **about 315-380 of 432 laid out today** |
+| | Lean | Middle | Everything maxed |
+|---|---|---|---|
+| Delay, stereo, 8-bit mu-law: 1.5 s a side at half rate / 1.2 s / 1.5 s at full rate | 66 | 106 | 132 |
+| Reverb: one type at a time (HALL and PLATE share a buffer) / both at once | 36 | 36 | 69 |
+| MOD FX lines: chorus send, master and BUS through-zero (stereo, 20 ms), per-track lines (a pool of 6, or all 11) | 19 | 19 | 28 |
+| Screen band buffer: 240 x 24 / 240 x 48 (X0X's canvas is 69 KB) | 12 | 23 | 23 |
+| Patterns: 16 x 12 tracks x 64 trigs x 3 B (micro-timing, conditions and retrigs in lanes, as X0X keeps chance), or 4 B | 37 | 37 | 49 |
+| Lock lanes (72 B each: 256 / 320) | 18 | 23 | 23 |
+| Sound pool (32-64 sounds), STEP user patterns, harmony | 6 | 6 | 9 |
+| Song rows + lanes (16 KB cap) | 19 | 19 | 19 |
+| Undo journal (old values per edit; X0X's whole-project shadow doesn't scale) | 16 | 16 | 16 |
+| Voices (about 26), track buffers, FX state | 30 | 35 | 40 |
+| **Hot code in RAM** (missing from the first version of this table) | 16 | 32 | 48 |
+| USB, backup, the rest of .data/.bss (as X0X) | 25 | 28 | 35 |
+| **Total** | **about 300** | **about 380** | **about 490** |
+
+Against the 432 KB X0X lays out today:
+- **Lean and middle fit,** the middle with about 50 KB to spare.
+- **Everything maxed doesn't fit** unless the audit finds most of the remaining 80 KB.
+
+The new features themselves are small: mod FX, through-zero, the bus, sound locks and textures
+come to about 25-35 KB together. The big items are what they always were, and they are also the
+levers, in order of value:
+
+1. **The delay** (66-132 KB).
+   - Storing it at half rate is nearly free in sound, since the repeats are low-passed at 3-5 kHz
+     in the feedback loop anyway. It halves the memory, or doubles the time.
+   - Keep full rate for a clean DIGI mode with short times.
+2. **Hot code in RAM** (16-48 KB). Move only what M0 shows the I-cache can't hold. If the cache
+   copes, this is near zero.
+3. **One reverb at a time** (saves 33 KB against two). Era desks often had a plate and a hall, but
+   one good hall plus a plate type you switch to is a reasonable trade.
+4. **Per-track MOD FX lines from a pool of six,** not eleven (saves about 9 KB). Phasers need no
+   line, so this only limits how many tracks flange or chorus at once.
+5. **Smaller screen bands** (saves 11 KB, at the cost of more SPI transactions).
+6. **COMB at track level, not per voice:** it is a MOD FX type with one line, tuned by the last
+   note. As a per-voice filter it would have cost about 1.7 KB a voice, 40 KB across the voices.
+7. **STEP patterns by reference:** library or user slot numbers, 1 byte each, not 64 bytes per
+   track per pattern.
 
 **Flash**
 - **App image:** at most 581 KB. Drop the 808 and the built-in break loops; keep the 909's roughly 120
@@ -731,8 +761,9 @@ additions, not a new machine.
 - **Noise colours** for the VA's noise oscillator: white, pink, DUST (sparse random impulses, for
   crackle, rain and vinyl) and DIGITAL (stepped S&H noise at a set rate, for radio and computer
   chirps). All four are cheap.
-- **A COMB filter type:** a short tuned feedback delay, plus or minus, about 1.7 KB per voice.
-  Metallic resonance and flanged noise.
+- **COMB, as a MOD FX type:** a short tuned feedback delay, plus or minus, tuned by the last note
+  or a fixed pitch. Metallic resonance and flanged noise. It is one line per track (per voice
+  would cost about 40 KB across all the voices).
 - **CRUSH and DECIMATE drive shapes:** bit depth and sample rate, for lo-fi grit.
 - **On the FX track:**
   - REVERB FREEZE: a lock turns the tail into an infinite drone.
@@ -902,7 +933,7 @@ and feel, and only the device answers them.
 
 ### M2: Engine framework and the first machines, on the device
 - Voice pool and budget, per-track buffers, fixed-order mix, the per-block core scheduler, the
-  control rate, LFOs, STEP, MOD ENV, the common filter (with COMB), DUCK, noise colours,
+  control rate, LFOs, STEP, MOD ENV, the common filter, MOD FX (with COMB), DUCK, noise colours,
   CRUSH and DECIMATE.
 - **Machines:** BD/CP/HAT/CYM (from 9W9), ACID, SAW, VA.
 - **FX:** hall, ping-pong, chorus send, MOD FX inserts, the BUS; X0X's master.
@@ -1006,7 +1037,9 @@ and feel, and only the device answers them.
    one slot.
 4. **Velocity:** ignore the experimental key velocity for now (recommended), or prototype it in M3.
 5. **Codebase and name:** a fork of X0X (recommended; GPL-3), in this repo or a new one.
-6. **Texture tracks in the template:** CH and OH share one HAT track to free a TEX track
+6. **Delay vs reverb memory:** a half-rate delay and one reverb at a time (recommended), or a
+   full-rate delay and two reverbs if the M0 audit finds the RAM.
+7. **Texture tracks in the template:** CH and OH share one HAT track to free a TEX track
    (recommended), or keep both hat tracks and give up PERC.
 
 ---
