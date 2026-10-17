@@ -41,6 +41,9 @@ Reference tracks: Cass & Slide "Perception", Taucher "Waters", Bedrock "Set in S
     tempo);
   - Deluge-style live capture into those rows;
   - song-length automation lanes that hold both drawn 16-64-bar ramps and recorded knob riding.
+- **Texture and FX sounds** (beds, risers, zaps, ear candy) come from a few small additions rather
+  than a new machine: a pitch/mod envelope, noise colours, a comb filter, sound locks, a SCATTER
+  source for sparse ornaments, LAND-ON trigs, and effects abuse on the FX track (section 4.11).
 - **CPU is budgeted by construction:**
   - each machine has a measured cost per voice, and the project can't exceed the budget;
   - voices render batched by machine, from RAM;
@@ -621,6 +624,128 @@ layout doesn't use)
 - **Open question:** the 0xE5000-0xFC000 region (92 KB) that no one has yet said is safe. Worth
   finding out in M0.
 
+### 4.11 Textures and FX sounds
+
+The music of the era is full of background texture: noise sweeps, wind and air, zaps and lasers,
+ring-mod clangs, FM buzzes, self-oscillating filter whistles, sampled voices and field
+recordings, reverse cymbals. Much of it came off sample CDs into samplers, or from abusing a synth
+and its effects. (This section is from domain knowledge, not from the research pass; the census
+at the end is how to check it.)
+
+**What the range is.** Sort these sounds two ways: what they *do* in the arrangement, and what
+they're *made of*.
+
+What they do:
+
+| Role | What it is | Where it goes | Examples |
+|---|---|---|---|
+| Bed | Long, quiet, continuous | Intros, outros, breakdowns: the space left when the drums are out | Filtered noise "air", wind, ocean, rain, drones, a slowly sweeping pad |
+| Motion | Rhythmic texture with no melody | Under the groove, panned wide | S&H bleeps, filtered noise rhythms, random 303 squelches, gated noise |
+| Transition | Leads into or out of a phrase boundary, 1-16 bars long | Before the drop, the end of a phrase, the start of a breakdown | Noise riser, pitch riser, downlifter, reverse cymbal, tape stop, sub drop |
+| Punctuation | A one-shot on a boundary | On the 1 of a section | Crash, impact with a long reverb tail, vocal shout |
+| Ear candy | Sparse, irregular ornaments | One every 4-8 bars, often near phrase ends, varied each time | Laser, zap, FM blip run, panned ring-mod hit, a delay-thrown vocal snippet |
+
+What they're made of:
+- **noise:** white, pink, or crackle, through a filter;
+- **resonant pitch:** a self-oscillating filter, a sine with a pitch envelope;
+- **inharmonic:** ring mod, FM at non-integer ratios, comb resonance;
+- **samples:** voices, field recordings, cymbals.
+
+**How they're used.**
+- Most of these sounds are made by their *effects*. A 50 ms blip into a long ping-pong and a hall
+  is a texture; dry, it's a click.
+- They sit high-passed, quiet and wide.
+- They mark phrase boundaries: the arrangement's 8/16/32 grid is where transitions and
+  punctuation go.
+- Ear candy keeps changing (a different pitch, pan and sound each time), and that is what keeps an
+  8-10 minute track alive.
+- Goa leans hardest on motion and ear candy (bleeps, zaps, film dialogue). Prog house leans on
+  beds and long transitions. Trance has the riser into the drop, the crash and impact on the 1, and
+  a bed under the breakdown. The 2020s revival adds lo-fi grit and field recordings.
+- KiloMix has none of this (ReBirth had no samples or noise); it's one of the things a modern take
+  adds.
+
+**How B handles them.** Mostly with what is already in the design. Textures need a few small
+additions, not a new machine.
+
+*Small additions to the sound*
+- **MOD ENV:** an assignable AD/ADSR on every synth track's MOD page, default destination pitch.
+  Lasers, zaps, risers, sub drops and tape stops all need a pitch envelope, and the chain as
+  written above had none.
+- **Noise colours** for the VA's noise oscillator: white, pink, DUST (sparse random impulses, for
+  crackle, rain and vinyl) and DIGITAL (stepped S&H noise at a set rate, for radio and computer
+  chirps). All four are cheap.
+- **A COMB filter type:** a short tuned feedback delay, plus or minus, about 1.7 KB per voice.
+  Metallic resonance and flanged noise.
+- **CRUSH and DECIMATE drive shapes:** bit depth and sample rate, for lo-fi grit.
+- **On the FX track:**
+  - REVERB FREEZE: a lock turns the tail into an infinite drone.
+  - Delay feedback past self-oscillation, with a limiter in the loop.
+  - Delay TIME slides, for pitch warps.
+  - Delay HOLD: input off, feedback 100 %, which makes the delay line a beat-repeat and stutter
+    looper. A slide on the read speed gives a tape stop. It needs no extra memory.
+- **Reverse playback** on the SAMPLE machine. The 909 crash already in the image, played
+  backwards, is the reverse cymbal, so it costs no sample space.
+
+*Small additions to the sequencer*
+- **Sound locks** (Elektron's idea): a trig can play a different sound from the project's sound
+  pool, within the track's machine. One texture track can then play a riser on bar 8, a zap on
+  bar 3 and a laser on bar 12. The lock is stored as one more lane.
+- **SCATTER**, a new trig source for ear candy:
+  - DENSITY: events per 8 bars, 0.25 to 8.
+  - GRID: where they may land (1/16, 1/8, offbeats, beats).
+  - LATE: weighting toward the end of the phrase.
+  - SET: which sound-lock slots it picks from, with no immediate repeats.
+  - AVOID: a track whose steps it keeps off, e.g. the clap.
+  - Seed, MUTATE and EVOLVE, like every source.
+  - Per-hit pitch and pan variety comes from an LFO in S&H/TRIG mode, which already exists.
+- **LAND-ON trigs:** a trig option that starts the sound early, so its *end* lands on the step.
+  The sequencer looks ahead (up to 4 bars), which it can do because patterns and songs are
+  deterministic; chance is decided when the sound starts. It is for reverse cymbals and reversed
+  vocals. For risers, the existing tools are enough: a trig with a long attack and a ramp on a song
+  row.
+- **Phrase conditions** (section 4.5) already place transitions and punctuation; song lanes
+  (section 4.8) already carry beds and 16-bar risers.
+- **An ATMOS performance macro:** scales SCATTER densities and bed levels together. It is one of
+  the assignable macros, so it's a preset, not a feature.
+
+*Track layout*
+- Textures need about two tracks: a synthesized one (VA or FM: beds, risers, zaps, bleeps) and a
+  sample one (crash, reverse crash, impacts, voices, field recordings).
+- The template gets them like this:
+  - **The CYM track becomes "CYM/SAMPLES":** ride, crash and the user's one-shots by sound lock.
+  - **CH and OH share one HAT track,** with OPEN as a per-trig lock, the way the 909 itself
+    shares and chokes them. That frees track 4 for **TEX**.
+- The cost: writing offbeat open hats over closed 16ths takes a few more presses than with two
+  tracks. The alternative is giving up PERC.
+- This is a template choice; any track can be anything.
+
+*Content*
+- About 30 synthesized texture presets in the factory set:
+  - transitions: RISER 8/16, DOWNLIFTER, TAPE STOP, SUB DROP, IMPACT, REVERSE CRASH (land-on);
+  - beds: WIND, OCEAN, AIR, CRACKLE;
+  - ear candy and motion: LASER, ZAP, GOA BLEEPS, BUBBLES, RING CLANG, METAL BUZZ, ROBOT, WHISTLE,
+    RADIO, ACID SQUELCH.
+- They cost a few KB of flash, no samples.
+- **The sample slots carry the user's own one-shots.** A per-sample 11 kHz option doubles what
+  fits, and is honest to the era: the samplers' lo-fi rates were part of the sound.
+
+**Pinning down the range: a texture census.**
+- Listen through 6-10 tracks (the five references plus a few goa and prog house), and log every
+  texture event in a spreadsheet:
+  - bar.beat;
+  - length (beats or bars);
+  - role (bed / motion / transition / punctuation / ear candy);
+  - material (noise / resonant / inharmonic / tonal / voice / field);
+  - movement (static / up / down / random / rhythmic);
+  - space (dry / reverb / delay throw / pan);
+  - section (intro / build / break / drop / outro).
+- An hour or two of listening gives the real numbers: events per 8 bars in each section, typical
+  lengths, how many land on phrase boundaries, which materials each genre uses.
+- Those set SCATTER's defaults and the preset list, and settle whether LAND-ON earns its place.
+- I can't listen, but I can measure WAVs you give me (onsets, spectral flatness, the exposed
+  intros and breakdowns) to check the log.
+
 ---
 
 ## 5. Proposal C: "Unison", one deep voice and a mod matrix
@@ -721,7 +846,8 @@ and feel, and only the device answers them.
 
 ### M2: Engine framework and the first machines, on the device
 - Voice pool and budget, per-track buffers, fixed-order mix, the per-block core scheduler, the
-  control rate, LFOs, STEP, the common filter, DUCK.
+  control rate, LFOs, STEP, MOD ENV, the common filter (with COMB), DUCK, noise colours,
+  CRUSH and DECIMATE.
 - **Machines:** BD/CP/HAT/CYM (from 9W9), ACID, SAW, VA.
 - **FX:** hall, ping-pong, chorus; X0X's master.
 - A throwaway minimal UI is enough here.
@@ -746,6 +872,7 @@ and feel, and only the device answers them.
 - EUCLID, GRIDS (Grids' map + our map), ARP with beat patterns, ACID, TURING, BREAK + SAMPLE,
   PHRASE with style maps.
 - MUTATE / NEW / EVOLVE / PRINT; the corpus compiler; the .rbs importer.
+- Sound locks, SCATTER, LAND-ON trigs; reverb FREEZE and delay HOLD on the FX track.
 - **Validation:**
   - determinism by seed;
   - "generator sweeps": scripts that render each source across a grid of settings into one WAV,
@@ -765,6 +892,8 @@ and feel, and only the device answers them.
 - About 100 factory sounds; five templates: TRANCE 97 (138 BPM), PROG 98 (128), GOA (145,
   Phrygian), REVIVAL (150), BREAKS (130); demo songs (original, not covers).
 - Loudness-matched presets.
+- The texture census (section 4.11), then about 30 texture presets and SCATTER defaults set
+  from it.
 - **Validation:**
   - Scenario recreations of each reference's *parts* (offbeat bass and gated pad à la "Waters",
     dub stabs à la "Set in Stone", the late bass and build of "Perception", "Gen Z"'s fast bass
@@ -821,6 +950,8 @@ and feel, and only the device answers them.
    one slot.
 4. **Velocity:** ignore the experimental key velocity for now (recommended), or prototype it in M3.
 5. **Codebase and name:** a fork of X0X (recommended; GPL-3), in this repo or a new one.
+6. **Texture tracks in the template:** CH and OH share one HAT track to free a TEX track
+   (recommended), or keep both hat tracks and give up PERC.
 
 ---
 
