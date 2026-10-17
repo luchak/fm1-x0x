@@ -32,17 +32,18 @@ CLASSIC's decay and loudness for the same knob settings. The code is in `firmwar
 
 ### The lines
 
-Rings of 1137, 1297, 1457, 1553, 1749, 1877, 2101 and 2213 samples; lines 0, 2, 4 and 6 delay one
-sample more in their dampers, so the delays are 1138, 1297, 1458, 1553, 1750, 1877, 2102 and 2213
-(25.8 to 50.2 ms):
+Rings of 1122, 1282, 1458, 1570, 1746, 1906, 2082 and 2242 samples. Lines 0, 2, 4 and 6 delay one
+sample more in their dampers, and lines 2, 4 and 6 are read 2, 4 and 6 samples further back, so the
+delays are 1123, 1282, 1461, 1570, 1751, 1906, 2089 and 2242 (25.5 to 50.8 ms, within a few samples of
+the first set's 1123 .. 2243):
 
-- **No common factor but 2** between any two delays (the odd ones are primes, the others twice an odd
-  number), so no two lines have a resonance in common but at DC and Nyquist.
+- **No common factor but 2** between any two delays (the even ones are twice an odd number), so no two
+  lines have a resonance in common but at DC and Nyquist.
 - **Spread over about an octave,** the shortest just above CLASSIC's shortest comb, so the room
   sounds the same size. Shorter sets gave tremolo and a low-mid resonance.
-- **Two residues modulo 16 in the rings** (lines 0 to 3 are 1 mod 16, lines 4 to 7 are 5;
-  `_Static_assert`s check it). This is for speed: see the block format below.
-- **Four residues in the delays** (1, 2, 5 and 6), for the sound: see below.
+- **All rings equal modulo 16** (all are 2 mod 16; a `_Static_assert` checks it). This is for speed:
+  see the block format below.
+- **Five residues in the delays** (3, 2, 5, 2, 7, 2, 9, 2), for the sound: see below.
 
 The set was chosen by ABX against an earlier one; it was distinguishable but not worse. Another
 pairwise-coprime set with the same offset had clear beating on long tails, so a new set needs a
@@ -58,23 +59,30 @@ spectrum repeats every 44100 / 16 = 2756 Hz. The diffusers don't remove this (th
 multiplies the network's), and it fades only as trip counts overlap, by about 0.8 s.
 
 With delays of several residues, each trip shrinks that pattern's part at harmonic m of 2756 Hz by
-`|phi(m)| = |mean over the lines of exp(2 pi i m d_j / 16)|`, at worst over m = 1 .. 15:
+`|phi(m)| = |mean over the lines of exp(2 pi i m d_j / 16)|`, at worst over m = 1 .. 15. The rings
+must all be one residue (one copy of the fetch's decode: a copy per residue costs instruction-cache
+misses), so the other residues come from delay added after the rings, for nothing or nearly:
 
-| Delays' residues | Fetch code | Worst `|phi|` per trip |
+- **The dampers' sample:** in each group of four, lines j and j + 2 hand the mix their damper's value
+  from before this sample's update, and are updated after the mix has read them. No more work.
+- **Reads back:** `read[]` keeps the last 6 reads of the last block before the next 16 (`FX_RM_HIST`),
+  and the network reads line j `FX_RM_SH(j)` samples back. The pointers are constants; the cost is
+  copying those reads at each fetch, 12 floats per 16 samples, and 192 bytes.
+
+| Delays | Cost | Worst `|phi|` per trip |
 |---|---|---|
-| One (the first set: all 3) | 1 copy | 1.00 (never) |
-| Two adjacent (one ring residue, the dampers' sample) | 1 copy | 0.98 |
-| Two ring residues | 2 copies | 0.98 |
-| **Two ring residues 4 apart, and the dampers' sample (1, 2, 5, 6)** | **2 copies** | **0.71** |
-| Eight, the best set | 8 copies | 0.31 |
+| One residue (the first set) | | 1.00 (never) |
+| The dampers' sample only | nothing | 0.98 |
+| Two ring residues, 4 apart, and the dampers' sample | a second copy of the decode | 0.71 |
+| **The dampers' sample, and reads back of 2, 4 and 6** | **12 floats copied per block** | **0.60** |
+| Reads back of up to 16 floats | 16 floats copied | 0.54 |
+| Eight residues, the best set | 8 copies of the decode | 0.31 |
 
 Measured on ROOM's output (clicks and snare bursts, as the correlation of the detrended log spectrum
 with itself 2756 Hz along, against its neighbouring lags; white noise gives 0), the first set showed
-0.10 to 0.19 from 60 to 150 ms after a hit; this one 0.06 to 0.08 at 60 ms, and 0.01 to 0.07 from
-100 ms. Eight fetch copies, one per line's own place, cost too many instruction-cache misses. The
-residues 1 and 5 (both 1 mod 4) make each delayed line's delay twice an odd number, so no two
-delays share a factor of 4: the pairs that also reach 0.71 but leave the delayed lines at 0, 4, 8 or
-12 mod 16 would share 4 or 16, a resonance at 11 kHz or every 2756 Hz.
+0.10 to 0.19 from 60 to 150 ms after a hit, this one 0.00 to 0.05 throughout. The ring residue 2 makes
+the undelayed lines twice an odd number and the delayed ones odd, so no two delays share a factor
+of 4 or more.
 
 ### Loop gain and damping
 
@@ -141,14 +149,11 @@ the write, it starts at the same place within a block every time: `-L mod 16`. T
 rest of that block and the start of the next, and both are already in the ring (the newest sample
 they reach was written L >= 16 samples earlier).
 
-Because lines 0 to 3 are equal modulo 16, and lines 4 to 7, that place is one of two compile-time
-constants. The decode is then straight code, with no per-line split or remainder loop, and the fetch
-loop (over four pairs: line j at one place, line j + 4 at the other) has two copies of it. One copy
-for all eight made the fetch about 40 % cheaper than one with per-line offsets read at run time;
-eight copies (each line its own constant) cost too many instruction-cache misses.
-
-The dampers' extra sample costs nothing: in each group of four, lines j and j + 2 hand the mix their
-damper's value from before this sample's update, and are updated after the mix has read them.
+Because the rings are all equal modulo 16, that place is one compile-time constant for every line.
+The decode is then straight code, with no per-line split or remainder loop, and one copy of it
+serves all eight lines. That made the fetch about 40 % cheaper than one with per-line offsets; eight
+copies, one per line's own constant, cost too many instruction-cache misses. The reads go after
+`FX_RM_HIST` kept ones (the delays' residues, above).
 
 ## Knob mapping
 

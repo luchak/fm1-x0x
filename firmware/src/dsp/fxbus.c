@@ -284,14 +284,14 @@ static inline float fx_psin(uint32_t ph)                 /* parabolic sine of a 
 /* ===================================================================== */
 /* The design, its storage format and its measured costs: docs/plans/2026-10-15-room-reverb.md. */
 
-/* The lines' rings' lengths (fxbus.h). Lines 0 .. 3 are equal modulo 16, and lines 4 .. 7, so their
- * reads start at one of two places in a block (fx_rm_fetch_all). */
+/* The lines' rings' lengths (fxbus.h). All are equal modulo 16, so every line's read starts at the same
+ * place in a block (fx_rm_fetch_all). */
 static const int32_t fx_rm_len[FX_RM_N] = { FX_RM_L0, FX_RM_L1, FX_RM_L2, FX_RM_L3, FX_RM_L4, FX_RM_L5, FX_RM_L6, FX_RM_L7 };
-/* The lines' delays: the ring, and one sample more for lines 0, 2, 4 and 6 (FX_RM_DLY, fx_rm_damp4).
- * No two have a common factor but 2 (their resonances in common are at 0 and Nyquist only); they
- * spread over about an octave (25.8 .. 50.2 ms), the shortest just above CLASSIC's shortest comb, so
- * the room sounds the same size. */
-#define FX_RM_DL(j) (FX_RM_L##j + FX_RM_DLY(j))
+/* The lines' delays: the ring, one sample more for lines 0, 2, 4 and 6 (FX_RM_DLY, fx_rm_damp4), and
+ * FX_RM_SH more for lines 2, 4 and 6 (fx_rm_damp4's reads). No two have a common factor but 2 (their
+ * resonances in common are at 0 and Nyquist only); they spread over about an octave (25.5 .. 50.8 ms),
+ * the shortest just above CLASSIC's shortest comb, so the room sounds the same size. */
+#define FX_RM_DL(j) (FX_RM_L##j + FX_RM_DLY(j) + FX_RM_SH(j))
 static const int32_t fx_rm_delay[FX_RM_N] = { FX_RM_DL(0), FX_RM_DL(1), FX_RM_DL(2), FX_RM_DL(3), FX_RM_DL(4), FX_RM_DL(5),
                                               FX_RM_DL(6), FX_RM_DL(7) };
 /* The input diffusers (fxbus.h): allpasses in series, which fill in the first 100 ms. */
@@ -393,30 +393,43 @@ D9_INLINE void fx_rm_fetch(fx_room_t *rm, int j, int32_t off)
 {
     const int32_t nblk = rm->nblk[j];
     int32_t b = rm->wblk[j];
-    fx_rm_unpack(rm, rm->base[j] + b, off, FX_RM_BLK, rm->c[j], rm->read[j]);
+    fx_rm_unpack(rm, rm->base[j] + b, off, FX_RM_BLK, rm->c[j], rm->read[j] + FX_RM_HIST);
     if (++b == nblk)
         b = 0;
-    fx_rm_unpack(rm, rm->base[j] + b, 0, off, rm->c[j], rm->read[j] + FX_RM_BLK - off);
+    fx_rm_unpack(rm, rm->base[j] + b, 0, off, rm->c[j], rm->read[j] + FX_RM_HIST + FX_RM_BLK - off);
 }
 
-/* Fetch the next 16 reads of all eight lines. Lines 0 .. 3 are equal modulo 16, and lines 4 .. 7
- * (checked here), so off is one of two constants: the decodes are straight code, and the loop over
- * the lines is kept rolled so that two copies of that code serve all eight (eight copies, one per
- * line's own place, were too much code: instruction-cache misses). */
+/* Keep the last n of line j's reads, before the line's next 16 replace them: the network reads line j
+ * FX_RM_SH(j) samples back (fx_rm_damp4), into the last block. n is a constant, so this is straight
+ * code. */
+D9_INLINE void fx_rm_keep(fx_room_t *rm, int j, int n)
+{
+    float *const r = rm->read[j];
+    D9_UNROLL_ALL
+    for (int k = 0; k < n; ++k)
+        r[FX_RM_HIST - n + k] = r[FX_RM_HIST + FX_RM_BLK - n + k];
+}
+
+/* Fetch the next 16 reads of all eight lines. Every length is the same modulo 16 (checked here), so
+ * off is one constant for all of them: the two decodes are straight code, and the loop over the lines
+ * is kept rolled so that one copy of that code serves all eight (a copy per place in a block costs
+ * instruction-cache misses; lines of other residues are made by reading back instead: fx_rm_keep). */
 #define FX_RM_OFF(l) ((FX_RM_BLK - (l) % FX_RM_BLK) % FX_RM_BLK)
 _Static_assert(FX_RM_OFF(FX_RM_L1) == FX_RM_OFF(FX_RM_L0) && FX_RM_OFF(FX_RM_L2) == FX_RM_OFF(FX_RM_L0) &&
-               FX_RM_OFF(FX_RM_L3) == FX_RM_OFF(FX_RM_L0), "ROOM's lengths: lines 0 .. 3 the same modulo 16");
-_Static_assert(FX_RM_OFF(FX_RM_L5) == FX_RM_OFF(FX_RM_L4) && FX_RM_OFF(FX_RM_L6) == FX_RM_OFF(FX_RM_L4) &&
-               FX_RM_OFF(FX_RM_L7) == FX_RM_OFF(FX_RM_L4), "ROOM's lengths: lines 4 .. 7 the same modulo 16");
-_Static_assert(FX_RM_OFF(FX_RM_L0) != 0 && FX_RM_OFF(FX_RM_L4) != 0,
-               "ROOM's lengths: not a multiple of 16 (fx_rm_unpack needs from < to)");
+               FX_RM_OFF(FX_RM_L3) == FX_RM_OFF(FX_RM_L0) && FX_RM_OFF(FX_RM_L4) == FX_RM_OFF(FX_RM_L0) &&
+               FX_RM_OFF(FX_RM_L5) == FX_RM_OFF(FX_RM_L0) && FX_RM_OFF(FX_RM_L6) == FX_RM_OFF(FX_RM_L0) &&
+               FX_RM_OFF(FX_RM_L7) == FX_RM_OFF(FX_RM_L0), "ROOM's lengths: all the same modulo 16");
+_Static_assert(FX_RM_OFF(FX_RM_L0) != 0, "ROOM's lengths: not a multiple of 16 (fx_rm_unpack needs from < to)");
+_Static_assert(FX_RM_SH(0) == 0 && FX_RM_SH(1) == 0 && FX_RM_SH(3) == 0 && FX_RM_SH(5) == 0 && FX_RM_SH(7) == 0 &&
+               FX_RM_SH(6) == FX_RM_HIST && FX_RM_HIST < FX_RM_BLK, "ROOM's reads back: lines 2, 4 and 6 (fx_rm_fetch_all)");
 D9_NOINLINE void fx_rm_fetch_all(fx_room_t *rm)
 {
+    fx_rm_keep(rm, 2, FX_RM_SH(2));
+    fx_rm_keep(rm, 4, FX_RM_SH(4));
+    fx_rm_keep(rm, 6, FX_RM_SH(6));
     D9_NO_UNROLL
-    for (int j = 0; j < FX_RM_N / 2; ++j) {
+    for (int j = 0; j < FX_RM_N; ++j)
         fx_rm_fetch(rm, j, FX_RM_OFF(FX_RM_L0));
-        fx_rm_fetch(rm, j + FX_RM_N / 2, FX_RM_OFF(FX_RM_L4));
-    }
 }
 
 /* Commit all eight lines' finished blocks, and move each line's write on a block. Return whether any
@@ -514,7 +527,8 @@ static void fx_room_reset(fxbus_t *f)
  * and 1 - a) is already in the reads (fx_rm_unpack's c), so a multiply and an add remain per sample.
  * Lines j and j + 2 (FX_RM_DLY) give the mix their z from before this sample's update: one sample of
  * delay more than their rings, for no more work and no more registers (their updates come after the
- * mix has read them).
+ * mix has read them). Each line's reads start FX_RM_SH(j) samples back in read[] (into the last
+ * block's, kept by fx_rm_keep): that much more delay, for nothing here (j is a constant).
  *
  * The mix is an 8-point Walsh-Hadamard transform: three stages of sums and differences. The first two
  * combine lines only within a group of four, so they are done here, while the four dampers' outputs
@@ -524,8 +538,10 @@ _Static_assert(FX_RM_DLY(0) && !FX_RM_DLY(1) && FX_RM_DLY(2) && !FX_RM_DLY(3) &&
                FX_RM_DLY(6) && !FX_RM_DLY(7), "ROOM's delayed lines: j and j + 2 of each fx_rm_damp4");
 D9_INLINE void fx_rm_damp4(fx_room_t *rm, int j, int32_t pos, int m)
 {
-    const float *r0 = &rm->read[j][pos], *r1 = &rm->read[j + 1][pos], *r2 = &rm->read[j + 2][pos],
-                *r3 = &rm->read[j + 3][pos];
+    const float *r0 = &rm->read[j][FX_RM_HIST - FX_RM_SH(j) + pos],
+                *r1 = &rm->read[j + 1][FX_RM_HIST - FX_RM_SH(j + 1) + pos],
+                *r2 = &rm->read[j + 2][FX_RM_HIST - FX_RM_SH(j + 2) + pos],
+                *r3 = &rm->read[j + 3][FX_RM_HIST - FX_RM_SH(j + 3) + pos];
     float *s0 = &rm->stage[j][pos], *s1 = &rm->stage[j + 1][pos], *s2 = &rm->stage[j + 2][pos],
           *s3 = &rm->stage[j + 3][pos];
     const float a0 = rm->a[j], a1 = rm->a[j + 1], a2 = rm->a[j + 2], a3 = rm->a[j + 3];

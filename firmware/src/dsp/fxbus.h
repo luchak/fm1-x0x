@@ -42,22 +42,25 @@
  * are fetched before that block is committed (fx_room). */
 #define FX_RM_N 8
 #define FX_RM_BLK 16
-/* The lines' rings' lengths in samples, shortest first. Lines 0 .. 3 must be equal modulo 16, and lines
- * 4 .. 7 (fx_rm_fetch_all: two reads' places in a block). Lines 0, 2, 4 and 6 have one sample more
- * delay than their ring, in their damper (fx_rm_damp4): FX_RM_DLY. The delays are then of four
- * residues modulo 16 (1, 2, 5 and 6), and the network's echoes spread over every place in a block as
- * the tail goes on. With one residue r, an echo after k trips is at r k mod 16 whatever its path,
- * and the early tail's spectrum repeats every 44100 / 16 Hz; with four, that pattern shrinks by
- * about 0.7 per trip (the design doc). */
-#define FX_RM_L0 1137
-#define FX_RM_L1 1297
-#define FX_RM_L2 1457
-#define FX_RM_L3 1553
-#define FX_RM_L4 1749
-#define FX_RM_L5 1877
-#define FX_RM_L6 2101
-#define FX_RM_L7 2213
+/* The lines' rings' lengths in samples, shortest first. All must be equal modulo 16 (fx_rm_fetch_all).
+ * A line's delay is its ring, one sample more for lines 0, 2, 4 and 6 (FX_RM_DLY: in their dampers,
+ * fx_rm_damp4), and FX_RM_SH(j) more for lines 2, 4 and 6 (2, 4 and 6 samples: the network reads
+ * them that far back in read[], which keeps the end of the last block's reads, FX_RM_HIST). The
+ * delays are then of five residues modulo 16 (2, 3, 5, 7 and 9), and the network's echoes spread
+ * over every place in a block as the tail goes on. With one residue r, an echo after k trips is at
+ * r k mod 16 whatever its path, and the early tail's spectrum repeats every 44100 / 16 Hz; with these,
+ * that pattern shrinks by at least 0.6 per trip (the design doc). */
+#define FX_RM_L0 1122
+#define FX_RM_L1 1282
+#define FX_RM_L2 1458
+#define FX_RM_L3 1570
+#define FX_RM_L4 1746
+#define FX_RM_L5 1906
+#define FX_RM_L6 2082
+#define FX_RM_L7 2242
 #define FX_RM_DLY(j) (((j) & 1) == 0)        /* line j's damper delays one sample */
+#define FX_RM_SH(j) (((j) & 1) ? 0 : (j))    /* line j is read this many samples further back */
+#define FX_RM_HIST 6                         /* the most of FX_RM_SH: the reads kept from the last block */
 #define FX_RM_NB(l) ((l) / FX_RM_BLK + 1)
 #define FX_RM_BLOCKS (FX_RM_NB(FX_RM_L0) + FX_RM_NB(FX_RM_L1) + FX_RM_NB(FX_RM_L2) + FX_RM_NB(FX_RM_L3) + \
                       FX_RM_NB(FX_RM_L4) + FX_RM_NB(FX_RM_L5) + FX_RM_NB(FX_RM_L6) + FX_RM_NB(FX_RM_L7))
@@ -76,7 +79,7 @@
 typedef struct {
     /* the 16 samples in progress, as floats: each line's block being written, and its decoded reads */
     float stage[FX_RM_N][FX_RM_BLK];
-    float read[FX_RM_N][FX_RM_BLK];
+    float read[FX_RM_N][FX_RM_HIST + FX_RM_BLK];   /* the last block's last reads (FX_RM_SH), then this block's */
     /* each line's damper, lp = a lp + c in: c is the loop gain, times the mix's 1/sqrt(8), times 1 - a */
     float c[FX_RM_N], a[FX_RM_N], lp[FX_RM_N];
     /* the outputs' filter, y = (s - tap_a s[-1]) tap_k, and its state for L and R (fx_room_coeffs) */
