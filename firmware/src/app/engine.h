@@ -27,6 +27,10 @@ enum { PART_909, PART_808, PART_303A, PART_303B, PART_BRK, NPARTS };
 enum { MX_LEVEL, MX_REV, MX_DLY, MX_PAN, MX_NPARAMS };
 #define NVOICES_MAX 12                 /* a drum machine: 11 tracks + the kit */
 #define NPARAMS_MAX 16                 /* params per (target, voice) */
+/* T_FX's voice 0 is fxbus's parameters (all 16 slots); voice 1 keeps what has no slot there:
+ * [0] the one-knob TAPE (ui.c), [FX_V1_RV_TYPE] the reverb's type (fxbus FX_RV_CLASSIC / ROOM; 0,
+ * CLASSIC, in every save before it) */
+#define FX_V1_RV_TYPE 1
 
 /* the sound of a project: every pot of every engine, mirrored here by the main loop */
 typedef struct {
@@ -43,6 +47,7 @@ void engine_motion_reset(void);                             /* lanes replaced (u
 void engine_load(uint32_t pct, uint32_t frames);           /* ISR, after engine_render */
 void engine_guard_enable(int on);                           /* off: full quality always (the PERF test) */
 int engine_guard_active(void);
+int engine_fx_rv_type(void);                                /* the reverb's type, as the engine has it */
 extern volatile uint32_t eng_guard_count;                   /* times it engaged (PERF screen) */
 extern volatile uint8_t eng_step[NTRACKS];   /* playheads for the UI */
 extern volatile uint16_t eng_peak[NPARTS];   /* part meters, Q15, decaying (UI) */
@@ -57,6 +62,7 @@ void engine_render(int32_t *out_lr, uint32_t n);   /* ISR: n stereo frames, 24-b
 /* parameter descriptors (UI) */
 int engine_nvoices(int target);
 int engine_nparams(int target, int voice);
+int engine_is_param(int target, int voice, int i);           /* a slot of the sound the engine plays */
 const x0x_param_t *engine_param(int target, int voice, int i);
 const char *engine_voice_name(int target, int voice);
 
