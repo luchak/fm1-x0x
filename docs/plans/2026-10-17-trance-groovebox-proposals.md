@@ -1,5 +1,8 @@
 # A trance groovebox for the FM-1: three proposals
 
+> **Moved, 2026-10-20:** this now lives in https://github.com/luchak/fm1-perception
+> (`docs/`). This copy is no longer updated.
+
 Status: proposal, for discussion. Nothing here is built or measured yet unless it says so. The
 measurements quoted come from X0X's own notes (docs/plans/2026-10-04-*.md) and from other FM-1
 firmwares; everything else is an estimate to be replaced by the measurements in milestone M0.

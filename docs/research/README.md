@@ -1,5 +1,8 @@
 # Research notes behind the trance groovebox proposals
 
+> **Moved, 2026-10-20:** this now lives in https://github.com/luchak/fm1-perception
+> (`docs/`). This copy is no longer updated.
+
 Four research passes, made on 2026-10-17 for
 `docs/plans/2026-10-17-trance-groovebox-proposals.md`, kept here so they outlive the session that
 made them.

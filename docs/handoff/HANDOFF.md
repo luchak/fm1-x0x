@@ -1,5 +1,8 @@
 # Handoff: from these notes to the new repo
 
+> **Moved, 2026-10-20:** this now lives in https://github.com/luchak/fm1-perception
+> (`docs/`). This copy is no longer updated.
+
 Everything the design work produced is in this branch (`trance-groovebox-proposals` of luchak/fm1-x0x).
 Nothing depends on the session that wrote it.
 
