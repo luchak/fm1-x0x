@@ -2,7 +2,7 @@
 /* X0X send FX and master, shared by the drum and bass parts: a send reverb, and a
  * port of 9W9's (GPL-3.0) tempo-synced delay and master stage:
  *
- *   out = volume * glue( dist( dry + reverb(rev) + delay(dly) ) )
+ *   out = volume * glue( dist( dry + reverb(rev + echoes) + delay(dly) ) )
  *
  *  - Reverb: ROOM (luchak's, X0X): the HPF on the send, four allpass diffusers, then an
  *    8-line feedback delay network (Hadamard mixing, a one-pole damper per line) whose
@@ -100,7 +100,7 @@ enum { FX_VOLUME, FX_DIST, FX_DRIVE, FX_COMP,
        FX_RV_DECAY, FX_RV_TONE, FX_RV_HPF, FX_RV_LEVEL,
        FX_DL_TIME, FX_DL_FDBK, FX_DL_TONE, FX_DL_LEVEL,
        FX_DL_HPF, FX_DL_TYPE, FX_DL_WEAR, FX_DL_PING,
-       FX_DL_TAPE, FX_DL_WIDTH, FX_NPARAMS };
+       FX_DL_TAPE, FX_DL_WIDTH, FX_DL_REV, FX_NPARAMS };
 
 struct fxbus {
     /* reverb */
@@ -117,6 +117,7 @@ struct fxbus {
     int32_t dl_ping;                  /* X0X: ping-pong (PING WIDTH above 0), a second tap at twice the time */
     float dl_wa, dl_wb;               /* X0X: ping-pong's width: each echo goes to its own side at dl_wa
                                        * and to the other at dl_wb (FX_DL_WIDTH) */
+    float dl_rv;                      /* X0X: the echoes' send into the reverb (FX_DL_REV) */
     /* master */
     float drive, volume, comp;
     int32_t dist_mode;
@@ -132,8 +133,9 @@ void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len);
 void fxbus_set_bpm(fxbus_t *f, float bpm);
 void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *dly, float *out, int n);
 /* X0X stereo: dry in L / R, the sends mono; with everything centred and no reverb, out_l and out_r
- * are fxbus_process's out exactly */
-void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const float *rev, const float *dly,
+ * are fxbus_process's out exactly. The delay's echoes are added into rev, the reverb's send, as far as
+ * FX_DL_REV says */
+void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, float *rev, const float *dly,
                       float *out_l, float *out_r, int n);
 int fxbus_nparams(void);
 const x0x_param_t *fxbus_param(int i);

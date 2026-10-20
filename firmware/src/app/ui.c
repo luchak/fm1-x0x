@@ -545,6 +545,7 @@ static const char *pref_name(pref_t r)
         case FX_RV_LEVEL: return "REV RETURN";
         case FX_DL_LEVEL: return "DLY RETURN";
         case FX_DL_WIDTH: return "PING WIDTH";
+        case FX_DL_REV: return "DLY TO REV";
         case FX_COMP: return "GLUE";
         default: break;
         }
@@ -866,6 +867,7 @@ static void build_pages(void)
         more(PR(R_ENG, T_FX, 0, FX_RV_LEVEL));
         more(PR(R_ENG, T_FX, 0, FX_DL_HPF));
         more(PR(R_ENG, T_FX, 0, FX_DL_LEVEL));
+        more(PR(R_ENG, T_FX, FX_VOICE(FX_DL_REV), FX_INDEX(FX_DL_REV)));
         more(PR(R_ENG, T_FX, FX_VOICE(FX_DL_WIDTH), FX_INDEX(FX_DL_WIDTH)));
         break;
     case V_MIX:                                        /* a channel picked with a black key, its four knobs */
@@ -1366,8 +1368,9 @@ static void save_project(void)
  * against the 24 MHz timer), the audio load and its peak, dropouts, stall cycles (when switched on),
  * and each stage's share of the CPU (the engine times them: engine.h ENG_PROF_N). PERF TEST plays
  * three patterns of its own (the factory loop, all five parts, a dense worst case) on the factory
- * sound, 1 s to settle and 3 s measured each, and keeps the table; then it puts back the project's
- * patterns, sound, tempo, mutes, chain and song mode. The project itself is never written. */
+ * sound, the worst case with all the echoes into the reverb too (DLY TO REV), 1 s to settle and 3 s
+ * measured each, and keeps the table; then it puts back the project's patterns, sound, tempo, mutes,
+ * chain and song mode. The project itself is never written. */
 static const char *const PT_N[3] = {"FACTORY LOOP", "ALL FIVE", "WORST CASE"};
 static pattern_t perf_bench[3];
 static sound_t perf_snd;
@@ -1555,6 +1558,8 @@ static void perf_test_tick(void)
             perf.res_peak[perf.test] = perf.peak;
             perf.res_cps[perf.test] = perf.cps;
             if (++perf.test < 3) {
+                if (perf.test == 2)                   /* the worst case: DLY TO REV up (before the settling) */
+                    engine_set(T_FX, FX_VOICE(FX_DL_REV), FX_INDEX(FX_DL_REV), 127);
                 seq_cue(&seq, perf.test);
                 perf.phase = 1;
                 perf.test_t0 = now;

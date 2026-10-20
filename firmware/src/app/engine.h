@@ -48,6 +48,7 @@ void engine_guard_enable(int on);                           /* off: full quality
 int engine_guard_active(void);
 float engine_fx_dl_wb(void);                                /* ping-pong: an echo's share on the other side */
 int engine_fx_dl_ping(void);                                /* ping-pong on (PING WIDTH above 0) */
+float engine_fx_dl_rev(void);                               /* the delay's echoes into the reverb */
 extern volatile uint32_t eng_guard_count;                   /* times it engaged (PERF screen) */
 extern volatile uint8_t eng_step[NTRACKS];   /* playheads for the UI */
 extern volatile uint16_t eng_peak[NPARTS];   /* part meters, Q15, decaying (UI) */

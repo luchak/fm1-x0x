@@ -844,6 +844,8 @@ static int expect(const char *what, const char *val)
         got = (int)(engine_fx_dl_wb() * 1000.0f + 0.5f);
     else if (!strcmp(what, "dlping"))              /* ping-pong on (PING WIDTH above 0) */
         got = engine_fx_dl_ping();
+    else if (!strcmp(what, "dlrev"))               /* the echoes' send into the reverb, x 1000 */
+        got = (int)(engine_fx_dl_rev() * 1000.0f + 0.5f);
     else if (!strcmp(what, "perftest"))            /* -1 idle, 0..2 running, 3 done */
         got = perf.test;
     else if (!strncmp(what, "perfres", 7))         /* perfresK: scenario K's share of the CPU x 10 */

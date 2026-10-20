@@ -52,6 +52,7 @@ static const fx_pspec_t fx_p[FX_NPARAMS] = {
      * left. It sets DlType and Wear, which are what the delay plays; it plays nothing itself. */
     [FX_DL_TAPE]  = { { "Tape", 127, 72, 0 }, CV_SW, 0, 0.0f, 0.0f },
     [FX_DL_WIDTH] = { { "Width", 127, 20, 0 }, CV_LIN, 0, 0.0f, 1.0f },  /* X0X: ping-pong, 0 = off */
+    [FX_DL_REV]   = { { "DlRev", 127, 0, 0 }, CV_LIN, 0, 0.0f, 1.0f },   /* X0X: the echoes into the reverb */
 };
 
 int fxbus_nparams(void) { return FX_NPARAMS; }
@@ -123,6 +124,7 @@ static void fx_apply(fxbus_t *f, int i, float v)
     case FX_DL_TYPE: f->dl_type = (int32_t)v; break;
     case FX_DL_WEAR: f->wear = v; break;
     case FX_DL_WIDTH: fx_dl_width(f, v); break;
+    case FX_DL_REV: f->dl_rv = v; break;
     default: break;
     }
     if (i == FX_DIST || i == FX_DRIVE)
@@ -654,8 +656,10 @@ static inline float dl_tap(const int16_t *buf, int32_t len, float flen, int32_t 
 /* out_r 0: 9W9's mono delay. Else both sides get the echo, or with PING the left reads at the time and
  * the right at twice it, the loop fed from the right: echoes alternate L R L R, one time apart, as far
  * apart as the width puts them (fx_dl_width). The line holds both, so PING needs twice the time
- * to fit (a 2 s line: 1 s); past that it plays centred. */
-static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int n)
+ * to fit (a 2 s line: 1 s); past that it plays centred.
+ * rv (0: none): the reverb's send, into which each echo goes at its return level times dl_rv, as a
+ * part's send does whatever its pan (with PING, the two taps are different echoes). */
+static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, float *rv, int n)
 {
     const float target = f->dl_time_ms * 0.001f * D9_SR;
     const int32_t len = f->dlen;
@@ -689,7 +693,7 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
     int16_t *buf = f->dbuf;
     const float flen = (float)len;
     const int ping = out_r && f->dl_ping && 2.0f * fm_maxf(f->dcur, target) + 4.0f < flen;
-    const float lvl = f->dl_level;
+    const float lvl = f->dl_level, rvl = lvl * f->dl_rv;
     /* each side's share of its own tap (y on the left, y2 on the right), and with PING narrowed, of the
      * other's: without PING, or at full width, the delay plays as it did before the width */
     const float la = ping ? lvl * f->dl_wa : lvl, lb = ping ? lvl * f->dl_wb : 0.0f;
@@ -727,6 +731,8 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
                 out[i] += y2 * lb;
                 out_r[i] += y * lb;
             }
+            if (rv)
+                rv[i] += (ping ? y + y2 : y) * rvl;
             quiet = (k == 0 && in[i] == 0.0f) ? quiet + 1 : 0;
         }
     } else {
@@ -773,6 +779,8 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
                 out[i] += y2 * lb;
                 out_r[i] += y * lb;
             }
+            if (rv)
+                rv[i] += (ping ? y + y2 : y) * rvl;
             quiet = (k == 0 && in[i] == 0.0f) ? quiet + 1 : 0;
         }
         f->wow_ph = wp;
@@ -798,7 +806,7 @@ void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *
         discard[i] = 0.0f;
     }
     fx_room(f, rev, out, discard, n);
-    fx_delay(f, dly, out, 0, n);
+    fx_delay(f, dly, out, 0, 0, n);
 
     if (f->dist_mode >= 1) {
         const float k = f->drive;
@@ -835,7 +843,7 @@ void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *
 
 /* X0X stereo: 9W9's chain on L and R. The distortion runs on each side; the glue compressor reads
  * the louder side and moves both together, so the image holds */
-void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const float *rev, const float *dly,
+void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, float *rev, const float *dly,
                       float *out_l, float *out_r, int n)
 {
     if (n > 256)
@@ -844,8 +852,8 @@ void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const 
         out_l[i] = dry_l[i];
         out_r[i] = dry_r[i];
     }
+    fx_delay(f, dly, out_l, out_r, f->dl_rv > 0.0f ? rev : 0, n);   /* first: its echoes go into rev */
     fx_room(f, rev, out_l, out_r, n);
-    fx_delay(f, dly, out_l, out_r, n);
     if (f->dist_mode >= 1) {
         const float k = f->drive;
         for (int i = 0; i < n; ++i) {

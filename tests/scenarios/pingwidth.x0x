@@ -10,7 +10,7 @@ tap FX
 tap SEL
 turn SELECT 20
 wait 600
-said PING WIDTH 20, 11 OF 11
+said PING WIDTH 20, 12 OF 12
 shot pingwidth_list.png
 turn ALGO 127
 expect sound4.1.1 127

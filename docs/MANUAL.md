@@ -556,9 +556,10 @@ sends, and has two pages:
   the far left (DIGI) is a clean 12-bit digital delay; turned up, it is a tape delay that wobbles,
   saturates and wears more the further you turn it, and can feed back on itself at high feedback.
 
-In SEL's list, under MORE: each effect's low cut and return level, and PING WIDTH, which bounces the
-echoes between left and right: 0 is off, 127 puts them hard left and right, and between, closer
-together. A new project starts at 20, a narrow bounce.
+In SEL's list, under MORE: each effect's low cut and return level; DLY TO REV, how much of the
+echoes, as loud as you hear them, goes into the reverb (as a part's REV send would); and PING
+WIDTH, which bounces the echoes between left and right: 0 is off, 127 puts them hard left and
+right, and between, closer together. A new project starts at 20, a narrow bounce.
 
 ---
 
