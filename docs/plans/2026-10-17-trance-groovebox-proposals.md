@@ -131,7 +131,12 @@ than a value per bar (section 4.8).
 
 ## 2. Common ground (all three proposals)
 
-Keep X0X's chassis and replace the instrument, as X0X did with Felucca. Worth keeping almost as is:
+Keep X0X's chassis and replace the instrument, as X0X did with Felucca.
+
+*Update, 2026-10-20:* that chassis now exists as **fm1-base** (Charles Vestal, MPL-2.0, on
+felucca-bsp). The new repo starts there and imports X0X's DSP and UI pieces; see
+`docs/handoff/HANDOFF.md`, section 2. The list below is still what we keep, wherever it comes
+from. Worth keeping almost as is:
 
 - **Platform:**
   - HAL (matrix scan, LEDs, LCD, audio, flash, the second core's start-up);
@@ -419,6 +424,8 @@ The FX track's pages:
 - The project must fit under the budget: about 80 % of two cores, minus FX and master. When you
   change a machine or POLY, the header shows a budget bar, and POLY clamps rather than letting the
   project overload.
+- Costly machines can also carry **hard caps**, on instances or voices: at most two ACIDs, say, or
+  fewer voices for a 2x-oversampled SAW. M0's measurements set them.
 - Melodee's weighted voice budget is precedent.
 - X0X's overload guard stays as a safety net, not as the plan.
 
@@ -1061,14 +1068,15 @@ and feel, and only the device answers them.
 
 ## 9. Decisions for you
 
-1. **B, A-then-B, or something else?** I'd go straight to B and use A's machine list as M2's
-   content.
+1. **B, A-then-B, or something else?** *Decided 2026-10-20: B, with machines sized by cost
+   (costly ones get fewer voices or a hard cap).*
 2. **Track count:** 11 + FX (recommended, one per black key), or 8 + FX (cheaper and simpler, but
    drums get tight), or more with banks.
 3. **Flash:** one project on the device plus two sample slots (recommended), or more projects and
    one slot.
 4. **Velocity:** ignore the experimental key velocity for now (recommended), or prototype it in M3.
-5. **Codebase and name:** a fork of X0X (recommended; GPL-3), in this repo or a new one.
+5. **Codebase and name:** *a new repo, decided 2026-10-20.* Base: an app on fm1-base, importing X0X's
+   pieces (recommended), or a fork of X0X (see `docs/handoff/HANDOFF.md`).
 6. **Delay vs reverb memory:** a half-rate delay and one reverb at a time (recommended), or a
    full-rate delay and two reverbs if the M0 audit finds the RAM.
 7. **Texture tracks in the template:** CH and OH share one HAT track to free a TEX track

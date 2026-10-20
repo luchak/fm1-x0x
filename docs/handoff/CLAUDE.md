@@ -12,8 +12,11 @@ throwback (Oprofessionell, Bliss Inc) and Framewerk-style progressive breaks as 
   - generators as per-track trig sources;
   - a harmony lane;
   - song rows, capture and lanes.
-- **Lineage:** a fork of X0X (charlesvestal/fm1-x0x, via luchak/fm1-x0x), itself a fork of Felucca.
-  GPL-3.0-only.
+- **Lineage:** an app on fm1-base (charlesvestal/fm1-base, MPL-2.0, itself on hugelton/felucca-bsp),
+  pinned as a submodule. It imports DSP and UI pieces from X0X (charlesvestal/fm1-x0x; ROOM from
+  luchak/fm1-x0x's `fdn-reverb`). Because those pieces are GPL-3, the app is GPL-3.0-only.
+  - Each imported file's origin and licence goes in CREDITS/LICENSING.
+  - BB Gen needs its author's permission again before reuse.
 - **What the user cares about most:** playability, easy tweaking, sound quality, an orthogonal
   design (no special-cased machines), and capturing arrangements.
 
@@ -25,8 +28,9 @@ throwback (Oprofessionell, Bliss Inc) and Framewerk-style progressive breaks as 
 - `docs/census/`: the texture census. Its Summary sheet feeds SCATTER's defaults and the texture
   presets.
 - `docs/measurements/`: numbers from the device (PERF tests, budgets).
-- The platform (HAL, USB, storage, OTA, loader, web installer) stays at X0X's paths, so upstream fixes
-  merge. New instrument code goes in new directories.
+- The platform is fm1-base (the submodule); the app sees only `plat.h`.
+  - Don't edit fm1-base in place. Changes it needs go upstream, or through its app hooks.
+  - Update the pin deliberately, after reading its changes.
 
 ## Milestones
 
