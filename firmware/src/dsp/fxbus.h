@@ -78,6 +78,9 @@ typedef struct {
     float c[FX_RM_N], a[FX_RM_N], lp[FX_RM_N];
     /* the outputs' filter, y = (s - tap_a s[-1]) tap_k, and its state for L and R (fx_room_times) */
     float tap_a, tap_k, tap_zl, tap_zr;
+    /* the emphasis around the lines' storage (fxbus.c, FX_RM_EMPH): the last diffused input, and the
+     * last L and R outputs */
+    float emph_x, emph_l, emph_r;
     /* each line's ring: its first block in exp / man, its number of blocks, and the block being
      * written (the read's first block too: see above) */
     uint16_t base[FX_RM_N], nblk[FX_RM_N], wblk[FX_RM_N];
