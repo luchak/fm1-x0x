@@ -356,6 +356,9 @@ static void check_tables(void)
             float pv;
             ref_get(ref, fkeys[i], &pv);
             nk++;
+            /* X0X's RvTone spans FX_RM_TONE_MAX times 9W9's range, so its default is 9W9's divided by that */
+            if (i == FX_RV_TONE)
+                pv = floorf(pv / FX_RM_TONE_MAX + 0.5f);
             if ((int)pv != fxbus_get(&F, i)) {
                 printf("  default pot %s: port %d, 9W9 %d\n", fkeys[i], fxbus_get(&F, i), (int)pv);
                 nd++;

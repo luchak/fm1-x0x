@@ -408,10 +408,6 @@ static void fx_room_times(fx_room_t *rm, float t_dc, float t_ny)
     rm->tap_k = 22.627417f / (g_sum * (1.0f - rm->tap_a));          /* sqrt 8 / (mean g (1 - tap_a)) */
 }
 
-/* RvTone's top is this multiple of the fitted range's: the knob's first 1 / FX_RM_TONE_MAX is the range
- * fitted to CLASSIC, and the polynomials run on past y = 1 above it, to a brighter tail. */
-#define FX_RM_TONE_MAX 1.3f
-
 /* Set ROOM's decay and output gain from RvDec and RvTone. The knobs map to the decay times t_dc and
  * t_ny, and to the output gain out_gain, by polynomials fitted to the decay as heard of the former
  * CLASSIC reverb (9W9's) and to its loudness over the knobs' range, so that settings carry over (the

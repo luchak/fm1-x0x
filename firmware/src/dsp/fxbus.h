@@ -102,6 +102,10 @@ enum { FX_VOLUME, FX_DIST, FX_DRIVE, FX_COMP,
        FX_DL_HPF, FX_DL_TYPE, FX_DL_WEAR, FX_DL_PING,
        FX_DL_TAPE, FX_DL_WIDTH, FX_NPARAMS };
 
+/* RvTone's top is this multiple of the fitted range's: the knob's first 1 / FX_RM_TONE_MAX is the range
+ * fitted to CLASSIC, and the polynomials run on past y = 1 above it, to a brighter tail. */
+#define FX_RM_TONE_MAX 1.3f
+
 struct fxbus {
     /* reverb */
     float rv_level;

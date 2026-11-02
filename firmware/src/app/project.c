@@ -425,6 +425,27 @@ static void sound_bd_sends(int t, int pan)            /* (rev 3: the 909's at 8;
     }
 }
 
+/* RvTone's knob came to span FX_RM_TONE_MAX times the range it had, the old range being its first part: the pot and
+ * its motion lane's steps become what plays the same sound, v / FX_RM_TONE_MAX */
+static int rv_tone_rescaled(int v)
+{
+    return (int)((float)v / FX_RM_TONE_MAX + 0.5f);
+}
+
+static void sound_rev7(void)
+{
+    uint8_t *tone = &proj.sound.v[T_FX][FX_VOICE(FX_RV_TONE)][FX_INDEX(FX_RV_TONE)];
+    int i, s;
+    *tone = (uint8_t)rv_tone_rescaled(*tone);
+    for (i = 0; i < NLANE; i++) {
+        lane_t *l = &proj.arr.lane[i];
+        if (l->used && l->t == T_FX && l->v == FX_VOICE(FX_RV_TONE) && l->i == FX_INDEX(FX_RV_TONE))
+            for (s = 0; s < NSTEPS; s++)
+                if (l->val[s] != MOT_NONE)
+                    l->val[s] = (uint8_t)rv_tone_rescaled(l->val[s]);
+    }
+}
+
 static void patterns_defaults(void)
 {
     int i;
@@ -508,6 +529,8 @@ int project_load(void)
     if (sound_ok && proj.set.snd_rev < 6)             /* before PING WIDTH: PING-PONG on is full width, off 0 */
         proj.sound.v[T_FX][FX_VOICE(FX_DL_WIDTH)][FX_INDEX(FX_DL_WIDTH)] =
             proj.sound.v[T_FX][0][FX_DL_PING] ? 127 : 0;
+    if (sound_ok && proj.set.snd_rev < 7)             /* before RvTone's longer range: the old range is its first part */
+        sound_rev7();
     proj.set.snd_rev = PROJ_SND_REV;
     return bad ? -1 : 0;
 }
