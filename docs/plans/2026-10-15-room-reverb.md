@@ -247,6 +247,10 @@ both types with this firmware's fxbus on the host (`tools/fit_room_render.c`) an
 `fx_room_coeffs`; `tools/fit_room.py --check` measures the firmware's mapping as it is. It needs
 numpy and scipy. Refit after changing the lines, the dampers or the outputs.
 
+The tool in the history predates RvTone's longer range: it sets both reverbs' RvTone to the same pot
+value. A refit with it would need ROOM's pot divided by 1.3 (`FX_RM_TONE_MAX`), or the fit's `y` scaled
+the same way, so that the 1.3 is not folded into the polynomials as well.
+
 - **Decay:** CLASSIC's response to a 20 ms noise burst at a snare's send level, measured as the
   decay time (-3 to -23 dB of the backward-integrated energy) in 10 mel-spaced bands, 100 Hz to 10
   kHz. CLASSIC's decay depends on level (its 12-bit loop truncates small values), so the burst level

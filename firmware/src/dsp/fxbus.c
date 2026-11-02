@@ -411,7 +411,11 @@ static void fx_room_times(fx_room_t *rm, float t_dc, float t_ny)
 /* Set ROOM's decay and output gain from RvDec and RvTone. The knobs map to the decay times t_dc and
  * t_ny, and to the output gain out_gain, by polynomials fitted to the decay as heard of the former
  * CLASSIC reverb (9W9's) and to its loudness over the knobs' range, so that settings carry over (the
- * design doc has the method). */
+ * design doc has the method).
+ *
+ * The fit covers x and y from 0 to 1. RvTone's knob runs to y = FX_RM_TONE_MAX, and the polynomials are
+ * extrapolated above y = 1 (RvTone above 98): there they are not fitted to anything, and refitting
+ * them has to take that range into account. */
 static void fx_room_coeffs(fxbus_t *f)
 {
     const float x = (float)f->pots[FX_RV_DECAY] * (1.0f / 127.0f);

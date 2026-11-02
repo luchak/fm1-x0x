@@ -20,6 +20,7 @@
  *    then reaches exact silence, and ROOM goes idle;
  *  - ROOM's decay times at settings across the knobs, in three bands, are as measured when the knob
  *    mapping was last changed (within 10 %);
+ *  - the level rises smoothly over RvTone's last quarter (the range above the knob mapping's fit);
  *  - L and R are uncorrelated and as loud;
  *  - RvLvl 0 is silent;
  *  - a full-scale send at the longest decay stays finite;
@@ -241,7 +242,7 @@ static void test_against_reference(void)
     /* Decay, Tone, LowCut, Level (-1: the default) */
     static const int SET[][4] = {{127, 15, -1, -1}, {127, 115, -1, -1}, {73, 57, -1, -1}, {0, 0, -1, -1},
                                  {64, 64, 0, -1}, {64, 64, 64, -1}, {64, 64, 127, -1}, {64, 64, -1, 64},
-                                 {64, 64, -1, 127}};
+                                 {64, 64, -1, 127}, {127, 127, -1, -1}, {0, 127, -1, -1}};
     float x[N], l[N], r[N], rl[N], rr[N];
     for (unsigned c = 0; c < sizeof SET / sizeof SET[0]; c++) {
         double e = 0, d = 0, el = 0, er = 0, elr = 0, ew = 0;
@@ -379,7 +380,7 @@ static void burst_response(int dec, int tone, float *l, float *r)
 static void test_decay_times(void)
 {
     /* RvTone is 1/1.3 of what it was before the range above the fit was added (FX_RM_TONE_MAX), so the first
-     * six settings are the former ones and sound as they did; the last three are in the new range */
+     * six settings are the former ones, within the knob's rounding; the last three are in the new range */
     static const int SET[][2] = {{0, 0}, {20, 46}, {73, 44}, {100, 23}, {127, 12}, {127, 88},
                                  {0, 127}, {73, 127}, {127, 127}};
     static const double FC[] = {350.0, 1400.0, 4500.0};
@@ -404,6 +405,32 @@ static void test_decay_times(void)
     snprintf(what, sizeof what, "decay times as when the knobs were set: every band within 10 %% (worst %.1f %%)",
              100 * worst);
     check(worst <= 0.10, what);
+}
+
+/* Check that ROOM's level moves smoothly over RvTone's last quarter, the range above the fit (y from 1 to
+ * FX_RM_TONE_MAX), where the output gain is extrapolated.
+ *
+ * At three decays, measure the energy of the response to the decay check's burst at RvTone 98 (y = 1), 112
+ * and 127. It must not fall as the tone rises, and must not rise by more than 3 dB from 98 to 127. */
+static void test_tone_level(void)
+{
+    static const int DEC[] = {0, 64, 127};
+    static const int TONE[] = {98, 112, 127};
+    static float l[DLEN], r[DLEN];
+    char what[160];
+    for (unsigned c = 0; c < sizeof DEC / sizeof DEC[0]; c++) {
+        double db[3];
+        for (int k = 0; k < 3; k++) {
+            double e = 0;
+            burst_response(DEC[c], TONE[k], l, r);
+            for (int i = 0; i < DLEN; i++)
+                e += (double)l[i] * l[i] + (double)r[i] * r[i];
+            db[k] = 10 * log10(e + 1e-30);
+        }
+        snprintf(what, sizeof what, "Decay %3d: level at RvTone 98, 112, 127 is %.2f, %.2f, %.2f dB, rising by under 3 dB",
+                 DEC[c], db[0], db[1], db[2]);
+        check(db[1] >= db[0] - 0.05 && db[2] >= db[1] - 0.05 && db[2] - db[0] < 3.0, what);
+    }
 }
 
 /* Check that with RvLvl at 0, ROOM puts out nothing at all, exactly. */
@@ -564,6 +591,7 @@ int main(void)
     test_block_format();
     test_against_reference();
     test_decay_times();
+    test_tone_level();
     test_level_zero();
     test_hot_send();
     test_knobs_while_playing();

@@ -425,11 +425,12 @@ static void sound_bd_sends(int t, int pan)            /* (rev 3: the 909's at 8;
     }
 }
 
-/* RvTone's knob came to span FX_RM_TONE_MAX times the range it had, the old range being its first part: the pot and
- * its motion lane's steps become what plays the same sound, v / FX_RM_TONE_MAX */
+/* RvTone's knob came to span 1.3 times the range it had, the old range being its first part: the pot and its motion
+ * lane's steps become what plays the same sound, v / 1.3 rounded. The 1.3 is written out, not FX_RM_TONE_MAX: this is
+ * what revision 7 means in a saved project, whatever the knob's range is tuned to later. */
 static int rv_tone_rescaled(int v)
 {
-    return (int)((float)v / FX_RM_TONE_MAX + 0.5f);
+    return (20 * v + 13) / 26;
 }
 
 static void sound_rev7(void)

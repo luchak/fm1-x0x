@@ -1,9 +1,15 @@
 # A project saved before RvTone's knob spanned a longer range (sound revision 6) loads with the pot and its
-# motion lane's steps divided by 1.3, the same sound; the lane's empty steps stay empty.
+# motion lane's steps divided by 1.3 (rounded), the same sound; the lane's empty steps stay empty, and the
+# reverb's other pots and lanes are left as they were.
 wait 300
 param 4 0 5 57
 lane 4 0 5 3 100
 lane 4 0 5 5 127
+lane 4 0 5 6 1
+lane 4 0 5 7 0
+param 4 0 4 100
+lane 4 0 4 3 100
+lane 4 0 7 3 90
 sndrev 6
 tap SAVE
 wait 300
@@ -13,6 +19,11 @@ expect sound4.0.5 44
 expect laneval4.0.5.3 77
 expect laneval4.0.5.5 98
 expect laneval4.0.5.4 255
+expect laneval4.0.5.6 1
+expect laneval4.0.5.7 0
+expect sound4.0.4 100
+expect laneval4.0.4.3 100
+expect laneval4.0.7.3 90
 # a project saved at the current revision keeps its values
 param 4 0 5 120
 lane 4 0 5 3 110
@@ -22,3 +33,18 @@ reboot
 wait 300
 expect sound4.0.5 120
 expect laneval4.0.5.3 110
+# the ends of the pot: 127 (the old top) becomes 98, 0 stays 0
+param 4 0 5 127
+sndrev 6
+tap SAVE
+wait 300
+reboot
+wait 300
+expect sound4.0.5 98
+param 4 0 5 0
+sndrev 6
+tap SAVE
+wait 300
+reboot
+wait 300
+expect sound4.0.5 0
