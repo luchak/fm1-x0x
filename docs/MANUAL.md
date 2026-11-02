@@ -545,7 +545,7 @@ Press SEL on the SONG screen for LENGTH, INSERT BAR, DELETE BAR and CLEAR SONG.
 
 ## 13. Effects
 
-![The FX screen: REVERB and DELAY sends for 909, 808, 303A, 303B and BRK as bars; DELAY 1/8. TAPE, FEEDBACK 40%, REVERB 57. The REVERB knobs: DECAY 73, TONE 57.](img/screen-fx.png "FX")
+![The FX screen: REVERB and DELAY sends for 909, 808, 303A, 303B and BRK as bars; DELAY 1/8. TAPE, FEEDBACK 40%, REVERB 57. The REVERB knobs: DECAY 73, TONE 44.](img/screen-fx.png "FX")
 
 There is one reverb and one delay, and every part can send to both: each part's sends are on the
 mixer's PARTS page (LFO), each drum track's on 909 MIX and 808 MIX. FX shows how much every part
