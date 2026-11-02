@@ -378,12 +378,16 @@ static void burst_response(int dec, int tone, float *l, float *r)
  * the same burst, L and R averaged. Each must be within 10 % of its value in DECAY_T. */
 static void test_decay_times(void)
 {
-    static const int SET[][2] = {{0, 0}, {20, 60}, {73, 57}, {100, 30}, {127, 15}, {127, 115}};
+    /* RvTone is 1/1.3 of what it was before the range above the fit was added (FX_RM_TONE_MAX), so the first
+     * six settings are the former ones and sound as they did; the last three are in the new range */
+    static const int SET[][2] = {{0, 0}, {20, 46}, {73, 44}, {100, 23}, {127, 12}, {127, 88},
+                                 {0, 127}, {73, 127}, {127, 127}};
     static const double FC[] = {350.0, 1400.0, 4500.0};
     /* the times (s) at each setting in SET, in each band in FC, measured when ROOM became X0X's only
-     * reverb (2026-10-31) */
+     * reverb (2026-10-31); the last three, in the range added above the fit, when it was added */
     static const double DECAY_T[][3] = {{0.181, 0.200, 0.210}, {0.191, 0.212, 0.220}, {0.383, 0.370, 0.282},
-                                        {0.763, 0.542, 0.303}, {1.876, 0.967, 0.324}, {2.169, 1.995, 1.224}};
+                                        {0.763, 0.542, 0.303}, {1.876, 0.967, 0.324}, {2.169, 1.995, 1.224},
+                                        {0.179, 0.208, 0.217}, {0.388, 0.408, 0.404}, {2.241, 2.197, 1.737}};
     static float l[DLEN], r[DLEN];
     double worst = 0;
     char what[160];

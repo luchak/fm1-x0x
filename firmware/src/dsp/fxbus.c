@@ -35,7 +35,7 @@ static const fx_pspec_t fx_p[FX_NPARAMS] = {
     [FX_DRIVE]    = { { "Drive", 127, 41, 0 }, CV_EXP, X0X_EXP_DRIVE, 0.0f, 0.0f },
     [FX_COMP]     = { { "Comp", 127, 0, 0 }, CV_LIN, 0, 0.0f, 1.0f },
     [FX_RV_DECAY] = { { "RvDec", 127, 73, 0 }, CV_LIN, 0, 0.2f, 0.93f },
-    [FX_RV_TONE]  = { { "RvTone", 127, 57, 0 }, CV_LIN, 0, 0.0f, 1.0f },
+    [FX_RV_TONE]  = { { "RvTone", 127, 44, 0 }, CV_LIN, 0, 0.0f, 1.0f },
     [FX_RV_HPF]   = { { "RvHPF", 127, 62, 0 }, CV_EXP, X0X_EXP_FX_HPF, 0.0f, 0.0f },
     [FX_RV_LEVEL] = { { "RvLvl", 127, 85, 0 }, CV_LIN, 0, 0.0f, 1.2f },
     [FX_DL_TIME]  = { { "DlTime", 12, 7, fx_div_names }, CV_SW, 0, 0.0f, 0.0f },
@@ -408,6 +408,10 @@ static void fx_room_times(fx_room_t *rm, float t_dc, float t_ny)
     rm->tap_k = 22.627417f / (g_sum * (1.0f - rm->tap_a));          /* sqrt 8 / (mean g (1 - tap_a)) */
 }
 
+/* RvTone's top is this multiple of the fitted range's: the knob's first 1 / FX_RM_TONE_MAX is the range
+ * fitted to CLASSIC, and the polynomials run on past y = 1 above it, to a brighter tail. */
+#define FX_RM_TONE_MAX 1.3f
+
 /* Set ROOM's decay and output gain from RvDec and RvTone. The knobs map to the decay times t_dc and
  * t_ny, and to the output gain out_gain, by polynomials fitted to the decay as heard of the former
  * CLASSIC reverb (9W9's) and to its loudness over the knobs' range, so that settings carry over (the
@@ -415,7 +419,7 @@ static void fx_room_times(fx_room_t *rm, float t_dc, float t_ny)
 static void fx_room_coeffs(fxbus_t *f)
 {
     const float x = (float)f->pots[FX_RV_DECAY] * (1.0f / 127.0f);
-    const float y = (float)f->pots[FX_RV_TONE] * (1.0f / 127.0f);
+    const float y = (float)f->pots[FX_RV_TONE] * (FX_RM_TONE_MAX / 127.0f);
     const float t_dc = fm_expf(-1.7984f + x * (1.1228f + x * (-0.6857f + x * 2.1048f)) + 0.0597f * y);
     const float t_ny = fm_minf(t_dc, fm_expf(-2.0520f - 0.6055f * x - 0.1850f * y + 1.2173f * x * y
                                              + 0.2419f * y * y + 0.5170f * x * x));

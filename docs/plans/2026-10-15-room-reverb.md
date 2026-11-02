@@ -226,11 +226,21 @@ offsets.
 
 ## Knob mapping
 
-With `x` = RvDecay / 127 and `y` = RvTone / 127:
+With `x` = RvDecay / 127 and `y` = 1.3 RvTone / 127 (so that RvTone 98 is the former knob's top, y = 1,
+and the knob's last quarter runs on above it, to y = 1.3):
 
 - `ln t_dc = -1.7984 + 1.1228 x - 0.6857 x^2 + 2.1048 x^3 + 0.0597 y`
 - `ln t_ny = min(ln t_dc, -2.0520 - 0.6055 x - 0.1850 y + 1.2173 x y + 0.2419 y^2 + 0.5170 x^2)`
 - the output gain is `1.8963 + 0.3712 x + 0.1889 y`.
+
+Above y = 1 the polynomials are used as they are. `t_ny` rises with `y` there (its derivative
+in `y` is positive above y = 1), and `t_dc / t_ny` falls toward 1, where the dampers are off: from 1.3,
+1.6, 2.3 and 5.3 at y = 1 (RvDecay 0, 64, 96, 127) to 1.2, 1.2, 1.6 and 3.4 at y = 1.3. The mapping is
+smooth through y = 1, and `t_ny` is limited by `t_dc` (no damping) only from y = 1.5 to 2.0 (by
+decay), past the knob's top. At RvTone 127 the decay at 4.5 kHz is 0.22, 0.40 and
+1.74 s at RvDecay 0, 73 and 127 (0.21, 0.28 and 1.22 s at y = 1). At short decays there is little more
+to gain: the tail is already nearly undamped, and its decay at 4.5 kHz is within 21 % of its decay at
+350 Hz.
 
 These are fitted to CLASSIC on a grid of 11 x 10 knob settings by `tools/fit_room.py`, which renders
 both types with this firmware's fxbus on the host (`tools/fit_room_render.c`) and prints the C for
